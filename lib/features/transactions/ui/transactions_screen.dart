@@ -24,11 +24,42 @@ class TransactionsScreen extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              const SectionHeader(
-                title: 'Transactions',
-                subtitle: 'Manual + simulated QR entries',
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(18),
+                  gradient: LinearGradient(
+                    colors: <Color>[
+                      Theme.of(context).colorScheme.primary.withValues(alpha: 0.24),
+                      Theme.of(context).colorScheme.secondary.withValues(alpha: 0.18),
+                    ],
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      'Activity',
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleLarge
+                          ?.copyWith(fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Track all manual + simulated transactions in one feed.',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 12),
+              const SectionHeader(
+                title: 'Quick Actions',
+                subtitle: 'Create and simulate transactions',
+              ),
+              const SizedBox(height: 8),
               Row(
                 children: <Widget>[
                   FilledButton.icon(
@@ -51,6 +82,11 @@ class TransactionsScreen extends ConsumerWidget {
                 ],
               ),
               const SizedBox(height: 12),
+              SectionHeader(
+                title: 'Combined Activity',
+                subtitle: txList.isEmpty ? 'No activity yet' : '${txList.length} transactions',
+              ),
+              const SizedBox(height: 8),
               Expanded(
                 child: txList.isEmpty
                     ? const EmptyState(
