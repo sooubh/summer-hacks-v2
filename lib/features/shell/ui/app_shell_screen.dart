@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:student_fin_os/core/router/app_router.dart';
 import 'package:student_fin_os/features/accounts/ui/account_aggregator_screen.dart';
+import 'package:student_fin_os/features/assistant/ui/voice_assistant_sheet.dart';
 import 'package:student_fin_os/features/cashflow/ui/cash_flow_screen.dart';
 import 'package:student_fin_os/features/dashboard/ui/dashboard_screen.dart';
 import 'package:student_fin_os/features/insights/ui/insights_screen.dart';
@@ -35,14 +36,17 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
 
   late final List<NavigationDestination> _destinations =
       const <NavigationDestination>[
-    NavigationDestination(icon: Icon(Icons.space_dashboard), label: 'Home'),
-    NavigationDestination(icon: Icon(Icons.account_balance), label: 'Accounts'),
-    NavigationDestination(icon: Icon(Icons.swap_horiz), label: 'Txns'),
-    NavigationDestination(icon: Icon(Icons.groups), label: 'Splits'),
-    NavigationDestination(icon: Icon(Icons.savings), label: 'Savings'),
-    NavigationDestination(icon: Icon(Icons.lightbulb), label: 'Insights'),
-    NavigationDestination(icon: Icon(Icons.timeline), label: 'CashFlow'),
-  ];
+        NavigationDestination(icon: Icon(Icons.space_dashboard), label: 'Home'),
+        NavigationDestination(
+          icon: Icon(Icons.account_balance),
+          label: 'Accounts',
+        ),
+        NavigationDestination(icon: Icon(Icons.swap_horiz), label: 'Txns'),
+        NavigationDestination(icon: Icon(Icons.groups), label: 'Splits'),
+        NavigationDestination(icon: Icon(Icons.savings), label: 'Savings'),
+        NavigationDestination(icon: Icon(Icons.lightbulb), label: 'Insights'),
+        NavigationDestination(icon: Icon(Icons.timeline), label: 'CashFlow'),
+      ];
 
   @override
   void initState() {
@@ -60,6 +64,20 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
     context.go(AppRoutes.appTabs[value]);
   }
 
+  Future<void> _openVoiceAssistant() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      builder: (BuildContext context) {
+        return const FractionallySizedBox(
+          heightFactor: 0.92,
+          child: VoiceAssistantSheet(),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final bool desktopLayout = MediaQuery.of(context).size.width >= 1000;
@@ -69,7 +87,20 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
         title: const Text('Student Financial OS'),
         actions: <Widget>[
           IconButton(
-            onPressed: () => ref.read(authControllerProvider.notifier).signOut(),
+            tooltip: 'Chat assistant',
+            onPressed: () {
+              context.push(AppRoutes.chatAssistant);
+            },
+            icon: const Icon(Icons.chat_bubble_outline),
+          ),
+          IconButton(
+            tooltip: 'Voice assistant',
+            onPressed: _openVoiceAssistant,
+            icon: const Icon(Icons.mic_none),
+          ),
+          IconButton(
+            onPressed: () =>
+                ref.read(authControllerProvider.notifier).signOut(),
             icon: const Icon(Icons.logout),
           ),
         ],
@@ -111,6 +142,11 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
                 _onDestinationSelected(value);
               },
             ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _openVoiceAssistant,
+        icon: const Icon(Icons.mic),
+        label: Text(desktopLayout ? 'Voice Assistant' : 'Voice'),
+      ),
     );
   }
 }

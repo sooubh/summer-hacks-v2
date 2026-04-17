@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:student_fin_os/features/assistant/ui/chat_assistant_screen.dart';
 import 'package:student_fin_os/features/auth/ui/login_screen.dart';
 import 'package:student_fin_os/features/shell/ui/app_shell_screen.dart';
 import 'package:student_fin_os/providers/firebase_providers.dart';
@@ -16,6 +17,7 @@ class AppRoutes {
   static const String savings = '/app/savings';
   static const String insights = '/app/insights';
   static const String cashFlow = '/app/cashflow';
+  static const String chatAssistant = '/assistant/chat';
 
   static const List<String> appTabs = <String>[
     dashboard,
@@ -34,8 +36,9 @@ class AppRoutes {
 }
 
 final appRouterProvider = Provider<GoRouter>((ref) {
-  final GoRouterRefreshStream refreshNotifier =
-      GoRouterRefreshStream(ref.watch(authServiceProvider).authStateChanges());
+  final GoRouterRefreshStream refreshNotifier = GoRouterRefreshStream(
+    ref.watch(authServiceProvider).authStateChanges(),
+  );
   ref.onDispose(refreshNotifier.dispose);
 
   return GoRouter(
@@ -45,14 +48,25 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.login,
         name: 'login',
-        builder: (BuildContext context, GoRouterState state) => const LoginScreen(),
+        builder: (BuildContext context, GoRouterState state) =>
+            const LoginScreen(),
       ),
       GoRoute(
         path: '/app/:tab',
         name: 'app-tab',
         builder: (BuildContext context, GoRouterState state) {
-          final String location = '/app/${state.pathParameters['tab'] ?? 'dashboard'}';
-          return AppShellScreen(initialIndex: AppRoutes.indexFromLocation(location));
+          final String location =
+              '/app/${state.pathParameters['tab'] ?? 'dashboard'}';
+          return AppShellScreen(
+            initialIndex: AppRoutes.indexFromLocation(location),
+          );
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.chatAssistant,
+        name: 'chat-assistant',
+        builder: (BuildContext context, GoRouterState state) {
+          return const ChatAssistantScreen();
         },
       ),
     ],
@@ -61,6 +75,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final String location = state.matchedLocation;
       final bool isLoggingIn = location == AppRoutes.login;
       final bool inAppArea = location.startsWith('/app/');
+      final bool inAssistantArea = location.startsWith('/assistant/');
 
       if (!loggedIn && !isLoggingIn) {
         return AppRoutes.login;
@@ -68,7 +83,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       if (loggedIn && isLoggingIn) {
         return AppRoutes.dashboard;
       }
-      if (loggedIn && !inAppArea && !isLoggingIn) {
+      if (loggedIn && !inAppArea && !inAssistantArea && !isLoggingIn) {
         return AppRoutes.dashboard;
       }
       return null;

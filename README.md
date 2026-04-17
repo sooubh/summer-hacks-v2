@@ -28,6 +28,8 @@ Production-ready blueprint and scaffold for a personal finance app focused on In
 - Rule-based AI insights
 - Cash-flow projection and low-balance prediction
 - Notification preference system + backend reminder automation
+- Gemini chat assistant with fast/deep model routing, context-aware replies, and prompt suggestions
+- Gemini voice assistant with microphone input, speech responses, stateful voice UX, and barge-in
 
 ## Start locally
 
@@ -40,6 +42,11 @@ Production-ready blueprint and scaffold for a personal finance app focused on In
 	- `firebase deploy --only firestore:rules,firestore:indexes,storage`
 4. Deploy functions:
 	- `cd functions`
+	- Copy `.env.example` to `.env` and set Gemini variables:
+	  - `GEMINI_API_KEY`
+	  - `GEMINI_CHAT_FAST_MODEL`
+	  - `GEMINI_CHAT_DEEP_MODEL`
+	  - `GEMINI_VOICE_MODEL` (set to `models/gemini-3.1-flash-live-preview`)
 	- `npm install`
 	- `npm run build`
 	- `firebase deploy --only functions`
