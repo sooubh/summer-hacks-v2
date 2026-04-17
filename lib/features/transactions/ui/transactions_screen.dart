@@ -74,7 +74,12 @@ class TransactionsScreen extends ConsumerWidget {
                                 ),
                               ),
                               title: Text(tx.title),
-                              subtitle: Text('${tx.category} • ${tx.source}'),
+                              subtitle: Text(
+                                '${tx.category} • ${tx.source}${tx.isCategoryOverridden ? ' • manual' : ' • auto'}',
+                              ),
+                              onLongPress: () {
+                                _openCategoryOverrideSheet(context, ref, tx);
+                              },
                               trailing: Text(
                                 '${tx.isExpense ? '-' : '+'}${CurrencyFormatter.inr(tx.amount)}',
                                 style: Theme.of(context)
@@ -107,7 +112,77 @@ class TransactionsScreen extends ConsumerWidget {
           category: 'food',
           tags: const <String>['qr', 'upi'],
           note: 'Simulated QR transaction',
+          source: 'simulation',
+          channel: 'upi',
         );
+  }
+
+  Future<void> _openCategoryOverrideSheet(
+    BuildContext context,
+    WidgetRef ref,
+    FinanceTransaction tx,
+  ) async {
+    String selected = tx.category;
+    final List<String> categories =
+        ref.read(transactionCategoriesProvider).where((String item) => item != 'auto').toList();
+
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (BuildContext context, void Function(void Function()) setModalState) {
+            return Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    'Override category',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: selected,
+                    items: categories.map((String category) {
+                      return DropdownMenuItem<String>(
+                        value: category,
+                        child: Text(category),
+                      );
+                    }).toList(),
+                    onChanged: (String? value) {
+                      setModalState(() {
+                        selected = value ?? selected;
+                      });
+                    },
+                    decoration: const InputDecoration(labelText: 'Category'),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: () async {
+                        await ref.read(transactionControllerProvider.notifier).overrideCategory(
+                              transactionId: tx.id,
+                              category: selected,
+                            );
+                        if (context.mounted) {
+                          Navigator.of(context).pop();
+                        }
+                      },
+                      child: const Text('Update category'),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<void> _openAddTransactionSheet(
@@ -141,7 +216,7 @@ class _AddTransactionSheetState extends State<_AddTransactionSheet> {
   final TextEditingController _tags = TextEditingController();
 
   TransactionType _type = TransactionType.expense;
-  String _category = 'food';
+  String _category = 'auto';
   String? _accountId;
 
   @override

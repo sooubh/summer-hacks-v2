@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:student_fin_os/models/account.dart';
+import 'package:student_fin_os/models/account_aggregation_snapshot.dart';
 import 'package:student_fin_os/models/dashboard_snapshot.dart';
 import 'package:student_fin_os/models/finance_enums.dart';
 import 'package:student_fin_os/models/finance_transaction.dart';
@@ -32,20 +33,14 @@ final savingsGoalsProvider = StreamProvider.autoDispose<List<SavingsGoal>>((ref)
 });
 
 final dashboardSnapshotProvider = Provider<DashboardSnapshot>((ref) {
-  final List<Account> accounts = ref.watch(accountsProvider).value ?? const <Account>[];
-  final List<FinanceTransaction> transactions =
-      ref.watch(transactionsProvider).value ?? const <FinanceTransaction>[];
+  final AccountAggregationSnapshot unified =
+      ref.watch(aggregationSnapshotProvider).value ?? AccountAggregationSnapshot.empty();
   final List<SavingsGoal> goals =
       ref.watch(savingsGoalsProvider).value ?? const <SavingsGoal>[];
 
   final DateTime now = DateTime.now().toUtc();
 
-  double totalBalance = 0;
-  for (final Account account in accounts) {
-    totalBalance += account.balance;
-  }
-
-  final List<FinanceTransaction> expenses = transactions
+  final List<FinanceTransaction> expenses = unified.unifiedTransactions
       .where((FinanceTransaction tx) => tx.type == TransactionType.expense)
       .toList();
 
@@ -74,7 +69,7 @@ final dashboardSnapshotProvider = Provider<DashboardSnapshot>((ref) {
   }
 
   final double safeToSpend = ref.watch(savingsServiceProvider).calculateSafeToSpend(
-        totalBalance: totalBalance,
+      totalBalance: unified.totalBalance,
         weeklyExpectedSpend: weeklySpend,
         monthlyGoalContribution: monthlyGoalContribution,
       );
@@ -83,11 +78,27 @@ final dashboardSnapshotProvider = Provider<DashboardSnapshot>((ref) {
   final double burnRate = monthlySpend / dayOfMonth;
 
   return DashboardSnapshot(
-    totalBalance: totalBalance,
+    totalBalance: unified.totalBalance,
     weeklySpend: weeklySpend,
     monthlySpend: monthlySpend,
     burnRate: burnRate,
     safeToSpend: safeToSpend,
-    categoryBreakdown: categories,
+    categoryBreakdown: unified.spendingByCategory.isEmpty
+        ? categories
+        : unified.spendingByCategory,
+    monthlySpendByKey: unified.monthlySpendByKey,
+    currentMonthSpend: unified.currentMonthSpend,
+    previousMonthSpend: unified.previousMonthSpend,
+    unifiedTransactions: unified.unifiedTransactions,
   );
+});
+
+final aggregationSnapshotProvider =
+    StreamProvider.autoDispose<AccountAggregationSnapshot>((ref) {
+  final String? userId = ref.watch(currentUserIdProvider);
+  if (userId == null) {
+    return Stream<AccountAggregationSnapshot>.value(AccountAggregationSnapshot.empty());
+  }
+
+  return ref.watch(aggregatorServiceProvider).watchUnifiedSnapshot(userId);
 });

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:student_fin_os/features/accounts/ui/account_aggregator_screen.dart';
 import 'package:student_fin_os/features/cashflow/ui/cash_flow_screen.dart';
 import 'package:student_fin_os/features/dashboard/ui/dashboard_screen.dart';
 import 'package:student_fin_os/features/insights/ui/insights_screen.dart';
@@ -20,6 +21,7 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
 
   late final List<Widget> _pages = const <Widget>[
     DashboardScreen(),
+    AccountAggregatorScreen(),
     TransactionsScreen(),
     SplitsScreen(),
     SavingsScreen(),
@@ -30,6 +32,7 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
   late final List<NavigationDestination> _destinations =
       const <NavigationDestination>[
     NavigationDestination(icon: Icon(Icons.space_dashboard), label: 'Home'),
+    NavigationDestination(icon: Icon(Icons.account_balance), label: 'Accounts'),
     NavigationDestination(icon: Icon(Icons.swap_horiz), label: 'Txns'),
     NavigationDestination(icon: Icon(Icons.groups), label: 'Splits'),
     NavigationDestination(icon: Icon(Icons.savings), label: 'Savings'),

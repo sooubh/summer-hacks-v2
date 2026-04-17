@@ -106,6 +106,55 @@ class InsightsService {
       ));
     }
 
+    final DateTime monthStart = DateTime.utc(now.year, now.month, 1);
+    final DateTime previousMonthStart = DateTime.utc(now.year, now.month - 1, 1);
+    final DateTime previousMonthEnd = monthStart.subtract(const Duration(days: 1));
+
+    final double currentMonthFood = _sumAmount(
+      expenses.where((FinanceTransaction tx) {
+        return (tx.transactionAt.isAfter(monthStart) ||
+                tx.transactionAt.isAtSameMomentAs(monthStart)) &&
+            tx.category.toLowerCase() == 'food';
+      }).toList(),
+    );
+
+    final double previousMonthFood = _sumAmount(
+      expenses.where((FinanceTransaction tx) {
+        final DateTime date = tx.transactionAt;
+        return (date.isAfter(previousMonthStart) || date.isAtSameMomentAs(previousMonthStart)) &&
+            (date.isBefore(previousMonthEnd) || date.isAtSameMomentAs(previousMonthEnd)) &&
+            tx.category.toLowerCase() == 'food';
+      }).toList(),
+    );
+
+    if (previousMonthFood > 0 && currentMonthFood > previousMonthFood * 1.3) {
+      insights.add(_build(
+        userId: userId,
+        title: 'Food spending trend changed',
+        message:
+            'You spent ${((currentMonthFood - previousMonthFood) / previousMonthFood * 100).round()}% more on food this month.',
+        severity: InsightSeverity.warning,
+      ));
+    }
+
+    final double recent14DayExpense = _sumAmount(
+      expenses.where((FinanceTransaction tx) {
+        return now.difference(tx.transactionAt).inDays <= 14;
+      }).toList(),
+    );
+    final double dailyRunRate = recent14DayExpense / 14;
+    if (dailyRunRate > 0) {
+      final int projectedDays = (totalBalance / dailyRunRate).floor();
+      if (projectedDays <= 5) {
+        insights.add(_build(
+          userId: userId,
+          title: 'Balance may run low soon',
+          message: 'At your current pace, your balance may run low in about $projectedDays days.',
+          severity: InsightSeverity.critical,
+        ));
+      }
+    }
+
     final bool noIncomeInTwoWeeks = recentTransactions.where((FinanceTransaction tx) {
       return tx.type == TransactionType.income &&
           now.difference(tx.transactionAt).inDays <= 14;

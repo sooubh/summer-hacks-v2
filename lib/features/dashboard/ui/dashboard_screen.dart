@@ -15,7 +15,7 @@ class DashboardScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final snapshot = ref.watch(dashboardSnapshotProvider);
     final accountsAsync = ref.watch(accountsProvider);
-    final txList = ref.watch(transactionsProvider).value ?? const <FinanceTransaction>[];
+    final List<FinanceTransaction> txList = snapshot.unifiedTransactions;
 
     return SafeArea(
       child: CustomScrollView(
@@ -113,6 +113,83 @@ class DashboardScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 18),
                   const SectionHeader(
+                    title: 'Monthly spending trend',
+                    subtitle: 'Track increase/decrease across months',
+                  ),
+                  const SizedBox(height: 10),
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            snapshot.previousMonthSpend <= 0
+                                ? 'No previous month baseline yet'
+                                : snapshot.isMonthlySpendUp
+                                    ? 'Spending increased by ${snapshot.monthlyTrendPercent.abs().toStringAsFixed(1)}%'
+                                    : 'Spending decreased by ${snapshot.monthlyTrendPercent.abs().toStringAsFixed(1)}%',
+                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  color: snapshot.isMonthlySpendUp
+                                      ? Colors.orangeAccent
+                                      : Colors.greenAccent,
+                                ),
+                          ),
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            height: 220,
+                            child: snapshot.monthlySpendEntries.isEmpty
+                                ? const EmptyState(
+                                    title: 'Not enough monthly data',
+                                    message: 'Generate or add transactions to visualize monthly spend.',
+                                    icon: Icons.bar_chart,
+                                  )
+                                : BarChart(
+                                    BarChartData(
+                                      barGroups:
+                                          _buildMonthlyBars(snapshot.monthlySpendEntries),
+                                      borderData: FlBorderData(show: false),
+                                      gridData: const FlGridData(show: false),
+                                      titlesData: FlTitlesData(
+                                        rightTitles: const AxisTitles(
+                                          sideTitles: SideTitles(showTitles: false),
+                                        ),
+                                        topTitles: const AxisTitles(
+                                          sideTitles: SideTitles(showTitles: false),
+                                        ),
+                                        leftTitles: const AxisTitles(
+                                          sideTitles: SideTitles(showTitles: false),
+                                        ),
+                                        bottomTitles: AxisTitles(
+                                          sideTitles: SideTitles(
+                                            showTitles: true,
+                                            getTitlesWidget: (double value, TitleMeta meta) {
+                                              final int idx = value.toInt();
+                                              if (idx < 0 ||
+                                                  idx >= snapshot.monthlySpendEntries.length) {
+                                                return const SizedBox.shrink();
+                                              }
+                                              return Padding(
+                                                padding: const EdgeInsets.only(top: 6),
+                                                child: Text(
+                                                  _shortMonth(snapshot.monthlySpendEntries[idx].key),
+                                                  style: Theme.of(context).textTheme.bodySmall,
+                                                ),
+                                              );
+                                            },
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  const SectionHeader(
                     title: 'Category split (30d)',
                     subtitle: 'Where your money went',
                   ),
@@ -171,6 +248,49 @@ class DashboardScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  List<BarChartGroupData> _buildMonthlyBars(List<MapEntry<String, double>> entries) {
+    return List<BarChartGroupData>.generate(entries.length, (int index) {
+      final MapEntry<String, double> entry = entries[index];
+      return BarChartGroupData(
+        x: index,
+        barRods: <BarChartRodData>[
+          BarChartRodData(
+            toY: entry.value,
+            width: 16,
+            borderRadius: BorderRadius.circular(4),
+            color: const Color(0xFF4AA8FF),
+          ),
+        ],
+      );
+    });
+  }
+
+  String _shortMonth(String monthKey) {
+    final List<String> parts = monthKey.split('-');
+    if (parts.length != 2) {
+      return monthKey;
+    }
+    final int? month = int.tryParse(parts[1]);
+    if (month == null || month < 1 || month > 12) {
+      return monthKey;
+    }
+    const List<String> monthNames = <String>[
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return monthNames[month - 1];
   }
 
   List<PieChartSectionData> _buildCategorySections(Map<String, double> input) {

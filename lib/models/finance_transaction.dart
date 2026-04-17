@@ -16,6 +16,8 @@ class FinanceTransaction {
     this.tags = const <String>[],
     this.note,
     this.source = 'manual',
+    this.channel = 'cash',
+    this.isCategoryOverridden = false,
   });
 
   final String id;
@@ -31,6 +33,8 @@ class FinanceTransaction {
   final List<String> tags;
   final String? note;
   final String source;
+  final String channel;
+  final bool isCategoryOverridden;
 
   bool get isExpense => type == TransactionType.expense;
   bool get isIncome => type == TransactionType.income;
@@ -49,6 +53,8 @@ class FinanceTransaction {
       'tags': tags,
       'note': note,
       'source': source,
+      'channel': channel,
+      'isCategoryOverridden': isCategoryOverridden,
     };
   }
 
@@ -73,6 +79,8 @@ class FinanceTransaction {
           .toList(),
       note: data['note'] as String?,
       source: data['source'] as String? ?? 'manual',
+      channel: data['channel'] as String? ?? 'cash',
+      isCategoryOverridden: data['isCategoryOverridden'] as bool? ?? false,
     );
   }
 }

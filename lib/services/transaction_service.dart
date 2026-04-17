@@ -53,6 +53,7 @@ class TransactionService {
       transaction.set(txRef, tx.toMap());
       transaction.update(accountRef, <String, dynamic>{
         'balance': nextBalance,
+        'transactionIds': FieldValue.arrayUnion(<String>[tx.id]),
         'updatedAt': FirestoreCodec.writeDateTime(DateTime.now().toUtc()),
       });
     });
@@ -82,8 +83,21 @@ class TransactionService {
       transaction.delete(txRef);
       transaction.update(accountRef, <String, dynamic>{
         'balance': nextBalance,
+        'transactionIds': FieldValue.arrayRemove(<String>[tx.id]),
         'updatedAt': FirestoreCodec.writeDateTime(DateTime.now().toUtc()),
       });
+    });
+  }
+
+  Future<void> overrideTransactionCategory({
+    required String userId,
+    required String transactionId,
+    required String category,
+  }) async {
+    await _transactions(userId).doc(transactionId).update(<String, dynamic>{
+      'category': category,
+      'isCategoryOverridden': true,
+      'updatedAt': FirestoreCodec.writeDateTime(DateTime.now().toUtc()),
     });
   }
 

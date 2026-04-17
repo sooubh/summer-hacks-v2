@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:student_fin_os/services/account_service.dart';
+import 'package:student_fin_os/services/aggregator_service.dart';
 import 'package:student_fin_os/services/auth_service.dart';
 import 'package:student_fin_os/services/cash_flow_service.dart';
 import 'package:student_fin_os/services/insights_service.dart';
@@ -12,6 +13,7 @@ import 'package:student_fin_os/services/notification_service.dart';
 import 'package:student_fin_os/services/savings_service.dart';
 import 'package:student_fin_os/services/split_service.dart';
 import 'package:student_fin_os/services/transaction_service.dart';
+import 'package:student_fin_os/services/simulation_service.dart';
 import 'package:uuid/uuid.dart';
 
 final firebaseAuthProvider = Provider<FirebaseAuth>((ref) {
@@ -49,6 +51,18 @@ final accountServiceProvider = Provider<AccountService>((ref) {
 
 final transactionServiceProvider = Provider<TransactionService>((ref) {
   return TransactionService(ref.watch(firestoreProvider));
+});
+
+final aggregatorServiceProvider = Provider<AggregatorService>((ref) {
+  return AggregatorService(ref.watch(firestoreProvider));
+});
+
+final simulationServiceProvider = Provider<SimulationService>((ref) {
+  return SimulationService(
+    accountService: ref.watch(accountServiceProvider),
+    transactionService: ref.watch(transactionServiceProvider),
+    uuid: ref.watch(uuidProvider),
+  );
 });
 
 final splitServiceProvider = Provider<SplitService>((ref) {

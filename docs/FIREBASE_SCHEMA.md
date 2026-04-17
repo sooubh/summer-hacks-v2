@@ -17,8 +17,10 @@
   - `userId`: string
   - `name`: string
   - `type`: enum(`bank`, `upi`, `cash`)
+  - `accountType`: enum(`bank`, `upi`, `cash`) (normalized alias for aggregation)
   - `provider`: string?
   - `balance`: number
+  - `transactionIds`: string[] (linked simulated/manual transaction ids)
   - `isActive`: bool
   - `icon`: string
   - `createdAt`: timestamp
@@ -37,6 +39,8 @@
   - `tags`: string[]
   - `note`: string?
   - `source`: string (`manual`, `qr`, `simulation`)
+  - `channel`: string (`cash`, `card`, `bank_transfer`, `upi`)
+  - `isCategoryOverridden`: bool
 
 - `users/{uid}/split_groups/{groupId}`
   - `ownerId`: string
