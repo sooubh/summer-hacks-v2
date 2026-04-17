@@ -27,48 +27,31 @@ class DashboardScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Row(
-                    children: <Widget>[
-                      const CircleAvatar(
-                        radius: 22,
-                        child: Icon(Icons.person),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'Purnima',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleLarge
-                              ?.copyWith(fontWeight: FontWeight.w800),
-                        ),
-                      ),
-                      IconButton.outlined(
-                        onPressed: () {},
-                        icon: const Icon(Icons.notifications_none),
-                      ),
-                    ],
+                  Text(
+                    'Unified Platform',
+                    style: Theme.of(context)
+                        .textTheme
+                        .headlineSmall
+                        ?.copyWith(fontWeight: FontWeight.w800),
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 4),
+                  Text(
+                    'One clean financial view across all your accounts.',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 12),
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surface,
                       borderRadius: BorderRadius.circular(18),
-                      gradient: LinearGradient(
-                        colors: <Color>[
-                          Theme.of(context).colorScheme.primary.withValues(alpha: 0.24),
-                          Theme.of(context).colorScheme.secondary.withValues(alpha: 0.18),
-                        ],
-                      ),
+                      border: Border.all(color: Theme.of(context).dividerColor),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        Text(
-                          'Total Balance',
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
+                        Text('Total Balance', style: Theme.of(context).textTheme.bodyMedium),
                         const SizedBox(height: 4),
                         Text(
                           CurrencyFormatter.inr(snapshot.totalBalance),
@@ -88,7 +71,10 @@ class DashboardScreen extends ConsumerWidget {
                               value: CurrencyFormatter.inr(
                                 txList
                                     .where((FinanceTransaction tx) => tx.isIncome)
-                                    .fold<double>(0, (double s, FinanceTransaction tx) => s + tx.amount),
+                                    .fold<double>(
+                                      0,
+                                      (double s, FinanceTransaction tx) => s + tx.amount,
+                                    ),
                               ),
                               positive: true,
                             ),
@@ -105,47 +91,6 @@ class DashboardScreen extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  Card(
-                    child: ListTile(
-                      leading: const CircleAvatar(child: Icon(Icons.mic_none)),
-                      title: const Text('Talk to FlowFi'),
-                      subtitle: const Text('Ask me anything about your finances.'),
-                      trailing: Icon(
-                        Icons.arrow_forward_ios,
-                        size: 14,
-                        color: Colors.white.withValues(alpha: 0.65),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  const SectionHeader(
-                    title: 'Smart Guidance',
-                    subtitle: 'Quick tools for financial awareness',
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: const <Widget>[
-                      _GuidanceItem(icon: Icons.shield_outlined, label: 'ATM Safety'),
-                      _GuidanceItem(icon: Icons.credit_card, label: 'Credit Score'),
-                      _GuidanceItem(icon: Icons.savings_outlined, label: 'Budgeting'),
-                      _GuidanceItem(icon: Icons.trending_up, label: 'Investing'),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  const SectionHeader(
-                    title: 'Top Spendings',
-                    subtitle: 'Most active categories',
-                  ),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    height: 110,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
-                      children: _topSpendingChips(snapshot.categoryBreakdown),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
                   GridView.count(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
@@ -157,29 +102,29 @@ class DashboardScreen extends ConsumerWidget {
                       MetricCard(
                         label: 'Total balance',
                         value: CurrencyFormatter.inr(snapshot.totalBalance),
-                        gradient: const <Color>[Color(0xFF123C58), Color(0xFF1C7C89)],
+                        gradient: const <Color>[Color(0xFF8ABF9E), Color(0xFF68A57F)],
                       ),
                       MetricCard(
                         label: 'Safe to spend',
                         value: CurrencyFormatter.inr(snapshot.safeToSpend),
-                        gradient: const <Color>[Color(0xFF15415A), Color(0xFF2ABF9E)],
+                        gradient: const <Color>[Color(0xFF8CB6D9), Color(0xFF6A9BC8)],
                       ),
                       MetricCard(
                         label: 'Weekly spend',
                         value: CurrencyFormatter.inr(snapshot.weeklySpend),
-                        gradient: const <Color>[Color(0xFF46213E), Color(0xFFBD4F6C)],
+                        gradient: const <Color>[Color(0xFFC6B4DF), Color(0xFFAA93CE)],
                       ),
                       MetricCard(
                         label: 'Burn rate/day',
                         value: CurrencyFormatter.inr(snapshot.burnRate),
-                        gradient: const <Color>[Color(0xFF3F2B16), Color(0xFFBF6E2B)],
+                        gradient: const <Color>[Color(0xFFE8C59A), Color(0xFFD9AD74)],
                       ),
                     ],
                   ),
                   const SizedBox(height: 18),
                   const SectionHeader(
-                    title: 'Unified Platform',
-                    subtitle: 'Bank + UPI + cash unified',
+                    title: 'Connected Accounts',
+                    subtitle: 'Bank + UPI + cash balances',
                   ),
                   const SizedBox(height: 10),
                   accountsAsync.when(
@@ -187,8 +132,7 @@ class DashboardScreen extends ConsumerWidget {
                       if (accounts.isEmpty) {
                         return const EmptyState(
                           title: 'No accounts yet',
-                          message:
-                              'Create your first account or seed mock bank data to view the dashboard.',
+                          message: 'Seed or create accounts to view unified balances.',
                           icon: Icons.account_balance_wallet,
                         );
                       }
@@ -215,14 +159,12 @@ class DashboardScreen extends ConsumerWidget {
                       );
                     },
                     loading: () => const Center(child: CircularProgressIndicator()),
-                    error: (Object error, StackTrace stackTrace) {
-                      return Text('Error: $error');
-                    },
+                    error: (Object error, StackTrace stackTrace) => Text('Error: $error'),
                   ),
                   const SizedBox(height: 18),
                   const SectionHeader(
-                    title: 'Monthly spending trend',
-                    subtitle: 'Track increase/decrease across months',
+                    title: 'Monthly Spending Trend',
+                    subtitle: 'Month-over-month analysis',
                   ),
                   const SizedBox(height: 10),
                   Card(
@@ -240,8 +182,8 @@ class DashboardScreen extends ConsumerWidget {
                             style: Theme.of(context).textTheme.titleSmall?.copyWith(
                                   fontWeight: FontWeight.w700,
                                   color: snapshot.isMonthlySpendUp
-                                      ? Colors.orangeAccent
-                                      : Colors.greenAccent,
+                                      ? Colors.orange.shade700
+                                      : Colors.green.shade700,
                                 ),
                           ),
                           const SizedBox(height: 8),
@@ -250,13 +192,12 @@ class DashboardScreen extends ConsumerWidget {
                             child: snapshot.monthlySpendEntries.isEmpty
                                 ? const EmptyState(
                                     title: 'Not enough monthly data',
-                                    message: 'Generate or add transactions to visualize monthly spend.',
+                                    message: 'Generate or add transactions to visualize spend trend.',
                                     icon: Icons.bar_chart,
                                   )
                                 : BarChart(
                                     BarChartData(
-                                      barGroups:
-                                          _buildMonthlyBars(snapshot.monthlySpendEntries),
+                                      barGroups: _buildMonthlyBars(snapshot.monthlySpendEntries),
                                       maxY: _monthlyMaxY(snapshot.monthlySpendEntries),
                                       borderData: FlBorderData(show: false),
                                       gridData: FlGridData(
@@ -266,7 +207,9 @@ class DashboardScreen extends ConsumerWidget {
                                             _monthlyMaxY(snapshot.monthlySpendEntries) / 4,
                                         getDrawingHorizontalLine: (double value) {
                                           return FlLine(
-                                            color: Colors.white.withValues(alpha: 0.08),
+                                            color: Theme.of(context)
+                                                .dividerColor
+                                                .withValues(alpha: 0.7),
                                             strokeWidth: 1,
                                           );
                                         },
@@ -310,8 +253,8 @@ class DashboardScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 18),
                   const SectionHeader(
-                    title: 'Category split (30d)',
-                    subtitle: 'Where your money went',
+                    title: 'Category Split (30d)',
+                    subtitle: 'Spending by category',
                   ),
                   const SizedBox(height: 10),
                   SizedBox(
@@ -319,7 +262,7 @@ class DashboardScreen extends ConsumerWidget {
                     child: snapshot.categoryBreakdown.isEmpty
                         ? const EmptyState(
                             title: 'No category data yet',
-                            message: 'Add a few transactions to unlock spending insights.',
+                            message: 'Add transactions to unlock category insights.',
                             icon: Icons.pie_chart,
                           )
                         : PieChart(
@@ -332,8 +275,8 @@ class DashboardScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 18),
                   const SectionHeader(
-                    title: 'Combined Activity',
-                    subtitle: 'Latest 6 entries',
+                    title: 'Recent Activity',
+                    subtitle: 'Latest transactions',
                   ),
                   const SizedBox(height: 8),
                   if (txList.isEmpty)
@@ -487,75 +430,6 @@ class DashboardScreen extends ConsumerWidget {
             ),
           ],
         ),
-      ],
-    );
-  }
-
-  List<Widget> _topSpendingChips(Map<String, double> categoryBreakdown) {
-    final List<MapEntry<String, double>> entries = categoryBreakdown.entries.toList()
-      ..sort((MapEntry<String, double> a, MapEntry<String, double> b) => b.value.compareTo(a.value));
-    final List<MapEntry<String, double>> top = entries.take(4).toList();
-
-    if (top.isEmpty) {
-      return <Widget>[
-        Card(
-          child: SizedBox(
-            width: 180,
-            child: Center(
-              child: Padding(
-                padding: EdgeInsets.all(12),
-                child: Text('No spending data yet'),
-              ),
-            ),
-          ),
-        ),
-      ];
-    }
-
-    return top.map((MapEntry<String, double> item) {
-      return Card(
-        margin: const EdgeInsets.only(right: 10),
-        child: SizedBox(
-          width: 140,
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: <Widget>[
-                const Icon(Icons.local_offer_outlined),
-                const SizedBox(height: 6),
-                Text(
-                  item.key.toUpperCase(),
-                  style: const TextStyle(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 2),
-                Text(CurrencyFormatter.inr(item.value)),
-              ],
-            ),
-          ),
-        ),
-      );
-    }).toList();
-  }
-}
-
-class _GuidanceItem extends StatelessWidget {
-  const _GuidanceItem({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: <Widget>[
-        CircleAvatar(
-          radius: 20,
-          backgroundColor: Colors.white.withValues(alpha: 0.08),
-          child: Icon(icon),
-        ),
-        const SizedBox(height: 6),
-        Text(label, style: Theme.of(context).textTheme.labelSmall),
       ],
     );
   }

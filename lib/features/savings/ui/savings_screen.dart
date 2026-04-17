@@ -38,7 +38,7 @@ class SavingsScreen extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   Text(
-                    'Goals',
+                    'Unified Goals',
                     style: Theme.of(context)
                         .textTheme
                         .titleLarge
@@ -46,7 +46,7 @@ class SavingsScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Plan and fund savings targets without disrupting daily expenses.',
+                    'Plan savings targets directly from your unified account platform.',
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                 ],

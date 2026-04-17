@@ -70,7 +70,7 @@ class _AccountAggregatorScreenState extends ConsumerState<AccountAggregatorScree
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   Text(
-                    'Digital Banking Hub',
+                    'Unified Accounts',
                     style: Theme.of(context)
                         .textTheme
                         .titleLarge
@@ -78,7 +78,7 @@ class _AccountAggregatorScreenState extends ConsumerState<AccountAggregatorScree
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Manage virtual bank, UPI and cash wallets. Trigger realistic mock transactions instantly.',
+                    'Manage bank, UPI and cash balances in one place.',
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                   const SizedBox(height: 12),
@@ -100,8 +100,8 @@ class _AccountAggregatorScreenState extends ConsumerState<AccountAggregatorScree
             ),
             const SizedBox(height: 12),
             SectionHeader(
-              title: 'Simulation controls',
-              subtitle: isBusy ? 'Running action...' : 'Seed accounts and generate mock history',
+              title: 'Platform Controls',
+              subtitle: isBusy ? 'Running action...' : 'Seed accounts and generate consistent mock activity',
             ),
             const SizedBox(height: 10),
             Wrap(

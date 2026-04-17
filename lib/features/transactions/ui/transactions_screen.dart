@@ -40,7 +40,7 @@ class TransactionsScreen extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     Text(
-                      'Activity',
+                      'Unified Activity',
                       style: Theme.of(context)
                           .textTheme
                           .titleLarge
@@ -48,7 +48,7 @@ class TransactionsScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Track all manual + simulated transactions in one feed.',
+                      'Track all account transactions in one consistent feed.',
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                   ],
@@ -57,7 +57,7 @@ class TransactionsScreen extends ConsumerWidget {
               const SizedBox(height: 12),
               const SectionHeader(
                 title: 'Quick Actions',
-                subtitle: 'Create and simulate transactions',
+                subtitle: 'Create and simulate focused transactions',
               ),
               const SizedBox(height: 8),
               Row(
