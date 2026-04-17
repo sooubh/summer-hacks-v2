@@ -71,9 +71,9 @@ class InsightsService {
     if (previousWeekExpense > 0 && weeklyExpense > previousWeekExpense * 1.25) {
       insights.add(_build(
         userId: userId,
-        title: 'Spending acceleration detected',
+        title: 'You are spending faster this week',
         message:
-            'This week spending is ${(weeklyExpense / previousWeekExpense * 100).round()}% of last week. Consider reducing discretionary categories.',
+            'Your spend is ${((weeklyExpense / previousWeekExpense) * 100).round()}% of last week. Try a short no-spend streak on non-essentials.',
         severity: InsightSeverity.warning,
       ));
     }
@@ -89,9 +89,9 @@ class InsightsService {
     if (weeklyExpense > 0 && foodExpense / weeklyExpense > 0.45) {
       insights.add(_build(
         userId: userId,
-        title: 'Food spending is high',
+        title: 'Food is taking a big share',
         message:
-            'Food is ${((foodExpense / weeklyExpense) * 100).round()}% of weekly spend. Try home-cooked days to save quickly.',
+            'Food is ${((foodExpense / weeklyExpense) * 100).round()}% of weekly spend. 1-2 home-cooked days can lower this quickly.',
         severity: InsightSeverity.info,
       ));
     }
@@ -99,9 +99,9 @@ class InsightsService {
     if (safeToSpend < totalBalance * 0.15) {
       insights.add(_build(
         userId: userId,
-        title: 'Safe-to-spend is low',
+        title: 'Your safe-to-spend is low',
         message:
-            'You are nearing your reserve buffer. Prioritize essentials till your next income inflow.',
+            'You are close to your safety buffer. Keep spending to essentials until next income.',
         severity: InsightSeverity.critical,
       ));
     }
@@ -130,9 +130,9 @@ class InsightsService {
     if (previousMonthFood > 0 && currentMonthFood > previousMonthFood * 1.3) {
       insights.add(_build(
         userId: userId,
-        title: 'Food spending trend changed',
+        title: 'Food spending jumped this month',
         message:
-            'You spent ${((currentMonthFood - previousMonthFood) / previousMonthFood * 100).round()}% more on food this month.',
+            'You spent ${((currentMonthFood - previousMonthFood) / previousMonthFood * 100).round()}% more on food vs last month.',
         severity: InsightSeverity.warning,
       ));
     }
@@ -148,8 +148,8 @@ class InsightsService {
       if (projectedDays <= 5) {
         insights.add(_build(
           userId: userId,
-          title: 'Balance may run low soon',
-          message: 'At your current pace, your balance may run low in about $projectedDays days.',
+          title: 'Your balance may get tight soon',
+          message: 'At this pace, funds may run low in about $projectedDays days. Slow spending this week if possible.',
           severity: InsightSeverity.critical,
         ));
       }
@@ -163,9 +163,9 @@ class InsightsService {
     if (noIncomeInTwoWeeks) {
       insights.add(_build(
         userId: userId,
-        title: 'No recent income inflow',
+        title: 'No income seen in 14 days',
         message:
-            'No income detected in the last 14 days. Plan expenses conservatively.',
+            'No income landed in the last 14 days. Keep your plan conservative until next credit.',
         severity: InsightSeverity.warning,
       ));
     }

@@ -89,6 +89,32 @@ class SimulationController extends AsyncNotifier<void> {
           );
     });
   }
+
+  Future<void> bootstrapUnifiedPlatform({
+    int mockCount = 12,
+  }) async {
+    final String? userId = ref.read(currentUserIdProvider);
+    if (userId == null) {
+      throw StateError('Not authenticated.');
+    }
+
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() async {
+      final List<Account> existing = ref.read(accountsProvider).value ?? const <Account>[];
+      final List<Account> available =
+          await ref.read(simulationServiceProvider).seedVirtualAccountsIfEmpty(
+                userId: userId,
+                existingAccounts: existing,
+              );
+
+      final List<Account> seedAccounts = available.isEmpty ? existing : available;
+      await ref.read(simulationServiceProvider).generateMockTransactions(
+            userId: userId,
+            accounts: seedAccounts,
+            count: mockCount,
+          );
+    });
+  }
 }
 
 final simulationControllerProvider =

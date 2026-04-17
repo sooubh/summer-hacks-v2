@@ -103,6 +103,14 @@ class _AccountAggregatorScreenState extends ConsumerState<AccountAggregatorScree
               title: 'Platform Controls',
               subtitle: isBusy ? 'Running action...' : 'Seed accounts and generate consistent mock activity',
             ),
+            const SizedBox(height: 6),
+            Text(
+              'Live mode: account balances and transactions update in real time via Firestore streams.',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
             const SizedBox(height: 10),
             Wrap(
               spacing: 8,

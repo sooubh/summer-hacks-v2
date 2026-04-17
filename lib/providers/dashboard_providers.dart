@@ -8,6 +8,30 @@ import 'package:student_fin_os/models/savings_goal.dart';
 import 'package:student_fin_os/providers/auth_providers.dart';
 import 'package:student_fin_os/providers/firebase_providers.dart';
 
+class UnifiedPlatformSummary {
+  const UnifiedPlatformSummary({
+    required this.bankBalance,
+    required this.upiBalance,
+    required this.cashBalance,
+    required this.totalAccounts,
+    required this.totalTransactions,
+  });
+
+  final double bankBalance;
+  final double upiBalance;
+  final double cashBalance;
+  final int totalAccounts;
+  final int totalTransactions;
+
+  static const UnifiedPlatformSummary empty = UnifiedPlatformSummary(
+    bankBalance: 0,
+    upiBalance: 0,
+    cashBalance: 0,
+    totalAccounts: 0,
+    totalTransactions: 0,
+  );
+}
+
 final accountsProvider = StreamProvider.autoDispose<List<Account>>((ref) {
   final String? userId = ref.watch(currentUserIdProvider);
   if (userId == null) {
@@ -101,4 +125,33 @@ final aggregationSnapshotProvider =
   }
 
   return ref.watch(aggregatorServiceProvider).watchUnifiedSnapshot(userId);
+});
+
+final unifiedPlatformSummaryProvider = Provider<UnifiedPlatformSummary>((ref) {
+  final List<Account> accounts = ref.watch(accountsProvider).value ?? const <Account>[];
+  final List<FinanceTransaction> transactions =
+      ref.watch(transactionsProvider).value ?? const <FinanceTransaction>[];
+
+  double bank = 0;
+  double upi = 0;
+  double cash = 0;
+
+  for (final Account account in accounts) {
+    switch (account.type) {
+      case AccountType.bank:
+        bank += account.balance;
+      case AccountType.upi:
+        upi += account.balance;
+      case AccountType.cash:
+        cash += account.balance;
+    }
+  }
+
+  return UnifiedPlatformSummary(
+    bankBalance: bank,
+    upiBalance: upi,
+    cashBalance: cash,
+    totalAccounts: accounts.length,
+    totalTransactions: transactions.length,
+  );
 });

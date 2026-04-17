@@ -1,6 +1,7 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:student_fin_os/core/utils/currency_formatter.dart';
 import 'package:student_fin_os/core/widgets/empty_state.dart';
 import 'package:student_fin_os/core/widgets/metric_card.dart';
@@ -8,6 +9,7 @@ import 'package:student_fin_os/core/widgets/section_header.dart';
 import 'package:student_fin_os/models/account.dart';
 import 'package:student_fin_os/models/finance_transaction.dart';
 import 'package:student_fin_os/providers/dashboard_providers.dart';
+import 'package:student_fin_os/providers/simulation_providers.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -17,6 +19,16 @@ class DashboardScreen extends ConsumerWidget {
     final snapshot = ref.watch(dashboardSnapshotProvider);
     final accountsAsync = ref.watch(accountsProvider);
     final List<FinanceTransaction> txList = snapshot.unifiedTransactions;
+    final UnifiedPlatformSummary summary = ref.watch(unifiedPlatformSummaryProvider);
+    final bool simulationBusy = ref.watch(simulationControllerProvider).isLoading;
+    final List<Account> accountList = accountsAsync.value ?? const <Account>[];
+    final Map<String, Account> accountById = <String, Account>{
+      for (final Account account in accountList) account.id: account,
+    };
+    final List<String> sourceLabels = accountList
+        .map((Account account) => account.provider ?? account.accountType.toUpperCase())
+        .toSet()
+        .toList();
 
     return SafeArea(
       child: CustomScrollView(
@@ -27,17 +39,125 @@ class DashboardScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text(
-                    'Unified Platform',
-                    style: Theme.of(context)
-                        .textTheme
-                        .headlineSmall
-                        ?.copyWith(fontWeight: FontWeight.w800),
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: Text(
+                          'Unified Platform',
+                          style: Theme.of(context)
+                              .textTheme
+                              .headlineSmall
+                              ?.copyWith(fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                      IconButton.outlined(
+                        onPressed: () => context.go('/app/profile'),
+                        tooltip: 'Profile',
+                        icon: const Icon(Icons.person_outline),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 4),
                   Text(
                     'One clean financial view across all your accounts.',
                     style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 12),
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Row(
+                            children: <Widget>[
+                              Expanded(
+                                child: Text(
+                                  'Virtual Bank → Account Aggregator → Unified Feed',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleSmall
+                                      ?.copyWith(fontWeight: FontWeight.w700),
+                                ),
+                              ),
+                              FilledButton.icon(
+                                onPressed: simulationBusy
+                                    ? null
+                                    : () async {
+                                        await ref
+                                            .read(simulationControllerProvider.notifier)
+                                            .bootstrapUnifiedPlatform();
+                                      },
+                                icon: simulationBusy
+                                    ? const SizedBox(
+                                        width: 14,
+                                        height: 14,
+                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                      )
+                                    : const Icon(Icons.sync),
+                                label: const Text('Sync'),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            'Accounts: ${summary.totalAccounts} • Transactions: ${summary.totalTransactions}',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Live updates from Firestore streams',
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                  color: Theme.of(context).colorScheme.primary,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: sourceLabels.isEmpty
+                                ? <Widget>[
+                                    _sourceChip(context, label: 'No sources yet'),
+                                  ]
+                                : sourceLabels
+                                    .map((String source) => _sourceChip(context, label: source))
+                                    .toList(),
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: <Widget>[
+                              Expanded(
+                                child: _platformTile(
+                                  context,
+                                  icon: Icons.account_balance,
+                                  title: 'Bank',
+                                  value: CurrencyFormatter.inr(summary.bankBalance),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: _platformTile(
+                                  context,
+                                  icon: Icons.qr_code_2,
+                                  title: 'UPI',
+                                  value: CurrencyFormatter.inr(summary.upiBalance),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: _platformTile(
+                                  context,
+                                  icon: Icons.payments,
+                                  title: 'Cash',
+                                  value: CurrencyFormatter.inr(summary.cashBalance),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 12),
                   Container(
@@ -123,6 +243,51 @@ class DashboardScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 18),
                   const SectionHeader(
+                    title: 'Smart Guidance',
+                    subtitle: 'Tap any icon to learn a quick finance tip',
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: const <Widget>[
+                      _GuidanceTipItem(
+                        icon: Icons.shield_outlined,
+                        label: 'ATM Safety',
+                        tip:
+                            'Always cover PIN entry and avoid ATMs with loose keypads or suspicious devices.',
+                      ),
+                      _GuidanceTipItem(
+                        icon: Icons.credit_card,
+                        label: 'Credit Score',
+                        tip:
+                            'Pay bills before due date and keep utilization low to improve your credit score.',
+                      ),
+                      _GuidanceTipItem(
+                        icon: Icons.savings_outlined,
+                        label: 'Budgeting',
+                        tip:
+                            'Follow 50/30/20: needs, wants, and savings to keep spending balanced.',
+                      ),
+                      _GuidanceTipItem(
+                        icon: Icons.trending_up,
+                        label: 'Investing',
+                        tip:
+                            'Invest small amounts regularly and stay consistent for long-term growth.',
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  const SectionHeader(
+                    title: 'Top Spendings',
+                    subtitle: 'Most active categories',
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: 110,
+                    child: _topSpendingsRow(context, snapshot.categoryBreakdown),
+                  ),
+                  const SizedBox(height: 18),
+                  const SectionHeader(
                     title: 'Connected Accounts',
                     subtitle: 'Bank + UPI + cash balances',
                   ),
@@ -145,7 +310,9 @@ class DashboardScreen extends ConsumerWidget {
                                 child: Icon(_iconForAccountType(item.accountType)),
                               ),
                               title: Text(item.name),
-                              subtitle: Text(item.provider ?? 'wallet'),
+                              subtitle: Text(
+                                '${item.provider ?? 'wallet'} • ${item.accountType.toUpperCase()}',
+                              ),
                               trailing: Text(
                                 CurrencyFormatter.inr(item.balance),
                                 style: Theme.of(context)
@@ -297,7 +464,9 @@ class DashboardScreen extends ConsumerWidget {
                                 : Theme.of(context).colorScheme.primary,
                           ),
                           title: Text(tx.title),
-                          subtitle: Text(tx.category),
+                          subtitle: Text(
+                            '${tx.category} • ${_platformLabelForTransaction(tx, accountById)}',
+                          ),
                           trailing: Text(
                             '${tx.isExpense ? '-' : '+'}${CurrencyFormatter.inr(tx.amount)}',
                           ),
@@ -431,6 +600,166 @@ class DashboardScreen extends ConsumerWidget {
           ],
         ),
       ],
+    );
+  }
+
+  Widget _platformTile(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String value,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Icon(icon, size: 17),
+          const SizedBox(height: 6),
+          Text(title, style: Theme.of(context).textTheme.labelSmall),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sourceChip(BuildContext context, {required String label}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w700),
+      ),
+    );
+  }
+
+  Widget _topSpendingsRow(BuildContext context, Map<String, double> categoryBreakdown) {
+    final List<MapEntry<String, double>> items = categoryBreakdown.entries.toList()
+      ..sort((MapEntry<String, double> a, MapEntry<String, double> b) => b.value.compareTo(a.value));
+
+    final List<MapEntry<String, double>> top = items.take(3).toList();
+    if (top.isEmpty) {
+      return const EmptyState(
+        title: 'No top spendings yet',
+        message: 'Add expenses to see your top categories.',
+        icon: Icons.local_offer_outlined,
+      );
+    }
+
+    return ListView.separated(
+      scrollDirection: Axis.horizontal,
+      itemCount: top.length,
+      separatorBuilder: (BuildContext context, int index) => const SizedBox(width: 10),
+      itemBuilder: (BuildContext context, int index) {
+        final MapEntry<String, double> entry = top[index];
+        return Container(
+          width: 120,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Theme.of(context).dividerColor),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              CircleAvatar(
+                radius: 16,
+                backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                child: Icon(_categoryIcon(entry.key), size: 18),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                entry.key[0].toUpperCase() + entry.key.substring(1),
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  IconData _categoryIcon(String category) {
+    final String normalized = category.toLowerCase();
+    if (normalized.contains('food')) {
+      return Icons.restaurant;
+    }
+    if (normalized.contains('shop')) {
+      return Icons.shopping_bag_outlined;
+    }
+    if (normalized.contains('travel')) {
+      return Icons.directions_car_outlined;
+    }
+    return Icons.local_offer_outlined;
+  }
+
+  String _platformLabelForTransaction(
+    FinanceTransaction tx,
+    Map<String, Account> accountById,
+  ) {
+    final Account? account = accountById[tx.accountId];
+    if (account == null) {
+      return tx.channel.toUpperCase();
+    }
+    return '${account.provider ?? account.accountType.toUpperCase()} ${account.accountType.toUpperCase()}';
+  }
+}
+
+class _GuidanceTipItem extends StatelessWidget {
+  const _GuidanceTipItem({
+    required this.icon,
+    required this.label,
+    required this.tip,
+  });
+
+  final IconData icon;
+  final String label;
+  final String tip;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: () {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(tip)),
+        );
+      },
+      child: SizedBox(
+        width: 78,
+        child: Column(
+          children: <Widget>[
+            CircleAvatar(
+              radius: 20,
+              backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+              child: Icon(icon),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.labelSmall,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
