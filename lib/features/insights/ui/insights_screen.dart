@@ -38,7 +38,7 @@ class InsightsScreen extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   Text(
-                    'Smart Guidance',
+                    'Unified Insights',
                     style: Theme.of(context)
                         .textTheme
                         .titleLarge
@@ -46,7 +46,7 @@ class InsightsScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Rule-based coaching and alerts for your spending behavior.',
+                    'Focused rule-based insights from your unified financial activity.',
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                 ],
