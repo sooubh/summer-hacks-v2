@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:student_fin_os/core/utils/currency_formatter.dart';
 import 'package:student_fin_os/core/widgets/empty_state.dart';
 import 'package:student_fin_os/core/widgets/section_header.dart';
+import 'package:student_fin_os/l10n/app_localizations.dart';
 import 'package:student_fin_os/models/account.dart';
 import 'package:student_fin_os/models/finance_enums.dart';
 import 'package:student_fin_os/models/finance_transaction.dart';
@@ -14,6 +15,7 @@ class TransactionsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final AppLocalizations l10n = AppLocalizations.of(context)!;
     final txList = ref.watch(transactionsProvider).value ?? const <FinanceTransaction>[];
     final accounts = ref.watch(accountsProvider).value ?? const <Account>[];
 
@@ -40,7 +42,7 @@ class TransactionsScreen extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     Text(
-                      'Unified Activity',
+                      l10n.unifiedActivity,
                       style: Theme.of(context)
                           .textTheme
                           .titleLarge
@@ -48,16 +50,16 @@ class TransactionsScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Track all account transactions in one consistent feed.',
+                      l10n.unifiedActivitySubtitle,
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: 12),
-              const SectionHeader(
-                title: 'Quick Actions',
-                subtitle: 'Create focused transactions quickly',
+              SectionHeader(
+                title: l10n.quickActions,
+                subtitle: l10n.quickActionsSubtitle,
               ),
               const SizedBox(height: 8),
               Row(
@@ -67,7 +69,7 @@ class TransactionsScreen extends ConsumerWidget {
                         ? null
                         : () => _openAddTransactionSheet(context, ref, accounts),
                     icon: const Icon(Icons.add),
-                    label: const Text('Add transaction'),
+                    label: Text(l10n.addTransaction),
                   ),
                   const SizedBox(width: 10),
                   OutlinedButton.icon(
@@ -77,21 +79,22 @@ class TransactionsScreen extends ConsumerWidget {
                             _simulateQrEntry(context, ref, accounts.first.id);
                           },
                     icon: const Icon(Icons.qr_code_scanner),
-                    label: const Text('Quick QR entry'),
+                    label: Text(l10n.quickQrEntry),
                   ),
                 ],
               ),
               const SizedBox(height: 12),
               SectionHeader(
-                title: 'Combined Activity',
-                subtitle: txList.isEmpty ? 'No activity yet' : '${txList.length} transactions',
+                title: l10n.combinedActivity,
+                subtitle:
+                    txList.isEmpty ? l10n.noActivityYet : l10n.transactionsCount(txList.length),
               ),
               const SizedBox(height: 8),
               Expanded(
                 child: txList.isEmpty
-                    ? const EmptyState(
-                        title: 'No transactions yet',
-                        message: 'Add your first transaction and start generating insights.',
+                    ? EmptyState(
+                      title: l10n.noTransactionsYet,
+                      message: l10n.noTransactionsYetBody,
                         icon: Icons.receipt_long,
                       )
                     : ListView.builder(
@@ -111,7 +114,7 @@ class TransactionsScreen extends ConsumerWidget {
                               ),
                               title: Text(tx.title),
                               subtitle: Text(
-                                '${tx.category} • ${tx.source}${tx.isCategoryOverridden ? ' • manual' : ' • auto'}',
+                                '${tx.category} • ${tx.source}${tx.isCategoryOverridden ? ' • ${l10n.manual}' : ' • ${l10n.auto}'}',
                               ),
                               onLongPress: () {
                                 _openCategoryOverrideSheet(context, ref, tx);
@@ -158,6 +161,7 @@ class TransactionsScreen extends ConsumerWidget {
     WidgetRef ref,
     FinanceTransaction tx,
   ) async {
+    final AppLocalizations l10n = AppLocalizations.of(context)!;
     String selected = tx.category;
     final List<String> categories =
         ref.read(transactionCategoriesProvider).where((String item) => item != 'auto').toList();
@@ -174,7 +178,7 @@ class TransactionsScreen extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   Text(
-                    'Override category',
+                    l10n.overrideCategory,
                     style: Theme.of(context)
                         .textTheme
                         .titleMedium
@@ -194,7 +198,7 @@ class TransactionsScreen extends ConsumerWidget {
                         selected = value ?? selected;
                       });
                     },
-                    decoration: const InputDecoration(labelText: 'Category'),
+                    decoration: InputDecoration(labelText: l10n.category),
                   ),
                   const SizedBox(height: 12),
                   SizedBox(
@@ -209,7 +213,7 @@ class TransactionsScreen extends ConsumerWidget {
                           Navigator.of(context).pop();
                         }
                       },
-                      child: const Text('Update category'),
+                      child: Text(l10n.updateCategory),
                     ),
                   ),
                 ],
@@ -271,6 +275,7 @@ class _AddTransactionSheetState extends State<_AddTransactionSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context)!;
     final List<String> categories =
         widget.ref.watch(transactionCategoriesProvider);
 
@@ -286,19 +291,19 @@ class _AddTransactionSheetState extends State<_AddTransactionSheet> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Text(
-            'Add transaction',
+            l10n.addTransaction,
             style: Theme.of(context)
                 .textTheme
                 .titleLarge
                 ?.copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 12),
-          TextField(controller: _title, decoration: const InputDecoration(labelText: 'Title')),
+          TextField(controller: _title, decoration: InputDecoration(labelText: l10n.title)),
           const SizedBox(height: 10),
           TextField(
             controller: _amount,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: 'Amount'),
+            decoration: InputDecoration(labelText: l10n.amount),
           ),
           const SizedBox(height: 10),
           DropdownButtonFormField<String>(
@@ -314,7 +319,7 @@ class _AddTransactionSheetState extends State<_AddTransactionSheet> {
                 _accountId = value;
               });
             },
-            decoration: const InputDecoration(labelText: 'Source account'),
+            decoration: InputDecoration(labelText: l10n.sourceAccount),
           ),
           const SizedBox(height: 10),
           DropdownButtonFormField<String>(
@@ -330,18 +335,18 @@ class _AddTransactionSheetState extends State<_AddTransactionSheet> {
                 _category = value ?? 'misc';
               });
             },
-            decoration: const InputDecoration(labelText: 'Category'),
+            decoration: InputDecoration(labelText: l10n.category),
           ),
           const SizedBox(height: 10),
           SegmentedButton<TransactionType>(
-            segments: const <ButtonSegment<TransactionType>>[
+            segments: <ButtonSegment<TransactionType>>[
               ButtonSegment<TransactionType>(
                 value: TransactionType.expense,
-                label: Text('Expense'),
+                label: Text(l10n.expense),
               ),
               ButtonSegment<TransactionType>(
                 value: TransactionType.income,
-                label: Text('Income'),
+                label: Text(l10n.income),
               ),
             ],
             selected: <TransactionType>{_type},
@@ -354,7 +359,7 @@ class _AddTransactionSheetState extends State<_AddTransactionSheet> {
           const SizedBox(height: 10),
           TextField(
             controller: _tags,
-            decoration: const InputDecoration(labelText: 'Tags (comma-separated)'),
+            decoration: InputDecoration(labelText: l10n.tagsCommaSeparated),
           ),
           const SizedBox(height: 14),
           SizedBox(
@@ -383,7 +388,7 @@ class _AddTransactionSheetState extends State<_AddTransactionSheet> {
                   Navigator.of(context).pop();
                 }
               },
-              child: const Text('Save transaction'),
+              child: Text(l10n.saveTransaction),
             ),
           ),
         ],

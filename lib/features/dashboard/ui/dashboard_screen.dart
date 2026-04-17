@@ -6,6 +6,7 @@ import 'package:student_fin_os/core/utils/currency_formatter.dart';
 import 'package:student_fin_os/core/widgets/empty_state.dart';
 import 'package:student_fin_os/core/widgets/metric_card.dart';
 import 'package:student_fin_os/core/widgets/section_header.dart';
+import 'package:student_fin_os/l10n/app_localizations.dart';
 import 'package:student_fin_os/models/account.dart';
 import 'package:student_fin_os/models/finance_transaction.dart';
 import 'package:student_fin_os/providers/dashboard_providers.dart';
@@ -15,6 +16,7 @@ class DashboardScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final AppLocalizations l10n = AppLocalizations.of(context)!;
     final snapshot = ref.watch(dashboardSnapshotProvider);
     final accountsAsync = ref.watch(accountsProvider);
     final List<FinanceTransaction> txList = snapshot.unifiedTransactions;
@@ -41,7 +43,7 @@ class DashboardScreen extends ConsumerWidget {
                     children: <Widget>[
                       Expanded(
                         child: Text(
-                          'Unified Platform',
+                          l10n.dashboardUnifiedPlatform,
                           style: Theme.of(context)
                               .textTheme
                               .headlineSmall
@@ -50,14 +52,14 @@ class DashboardScreen extends ConsumerWidget {
                       ),
                       IconButton.outlined(
                         onPressed: () => context.go('/app/profile'),
-                        tooltip: 'Profile',
+                        tooltip: l10n.profile,
                         icon: const Icon(Icons.person_outline),
                       ),
                     ],
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'One clean financial view across all your accounts.',
+                    l10n.dashboardOneCleanView,
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                   const SizedBox(height: 12),
@@ -71,7 +73,7 @@ class DashboardScreen extends ConsumerWidget {
                             children: <Widget>[
                               Expanded(
                                 child: Text(
-                                  'Connected Accounts → Unified Feed',
+                                  l10n.dashboardConnectedToFeed,
                                   style: Theme.of(context)
                                       .textTheme
                                       .titleSmall
@@ -82,12 +84,15 @@ class DashboardScreen extends ConsumerWidget {
                           ),
                           const SizedBox(height: 10),
                           Text(
-                            'Accounts: ${summary.totalAccounts} • Transactions: ${summary.totalTransactions}',
+                            l10n.dashboardAccountsTransactions(
+                              summary.totalAccounts,
+                              summary.totalTransactions,
+                            ),
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Live updates from Firestore streams',
+                            l10n.dashboardLiveUpdates,
                             style: Theme.of(context).textTheme.labelSmall?.copyWith(
                                   color: Theme.of(context).colorScheme.primary,
                                   fontWeight: FontWeight.w700,
@@ -99,7 +104,7 @@ class DashboardScreen extends ConsumerWidget {
                             runSpacing: 8,
                             children: sourceLabels.isEmpty
                                 ? <Widget>[
-                                    _sourceChip(context, label: 'No sources yet'),
+                                    _sourceChip(context, label: l10n.dashboardNoSourcesYet),
                                   ]
                                 : sourceLabels
                                     .map((String source) => _sourceChip(context, label: source))
@@ -112,7 +117,7 @@ class DashboardScreen extends ConsumerWidget {
                                 child: _platformTile(
                                   context,
                                   icon: Icons.account_balance,
-                                  title: 'Bank',
+                                  title: l10n.bank,
                                   value: CurrencyFormatter.inr(summary.bankBalance),
                                 ),
                               ),
@@ -121,7 +126,7 @@ class DashboardScreen extends ConsumerWidget {
                                 child: _platformTile(
                                   context,
                                   icon: Icons.qr_code_2,
-                                  title: 'UPI',
+                                  title: l10n.upi,
                                   value: CurrencyFormatter.inr(summary.upiBalance),
                                 ),
                               ),
@@ -130,7 +135,7 @@ class DashboardScreen extends ConsumerWidget {
                                 child: _platformTile(
                                   context,
                                   icon: Icons.payments,
-                                  title: 'Cash',
+                                  title: l10n.cash,
                                   value: CurrencyFormatter.inr(summary.cashBalance),
                                 ),
                               ),
@@ -152,7 +157,7 @@ class DashboardScreen extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        Text('Total Balance', style: Theme.of(context).textTheme.bodyMedium),
+                        Text(l10n.totalBalance, style: Theme.of(context).textTheme.bodyMedium),
                         const SizedBox(height: 4),
                         Text(
                           CurrencyFormatter.inr(snapshot.totalBalance),
@@ -168,7 +173,7 @@ class DashboardScreen extends ConsumerWidget {
                             _deltaItem(
                               context,
                               icon: Icons.arrow_upward,
-                              title: 'Income',
+                              title: l10n.income,
                               value: CurrencyFormatter.inr(
                                 txList
                                     .where((FinanceTransaction tx) => tx.isIncome)
@@ -182,7 +187,7 @@ class DashboardScreen extends ConsumerWidget {
                             _deltaItem(
                               context,
                               icon: Icons.arrow_downward,
-                              title: 'Spent',
+                              title: l10n.spent,
                               value: CurrencyFormatter.inr(snapshot.monthlySpend),
                               positive: false,
                             ),
@@ -201,66 +206,62 @@ class DashboardScreen extends ConsumerWidget {
                     childAspectRatio: 1.38,
                     children: <Widget>[
                       MetricCard(
-                        label: 'Total balance',
+                        label: l10n.totalBalance,
                         value: CurrencyFormatter.inr(snapshot.totalBalance),
                         gradient: const <Color>[Color(0xFF8ABF9E), Color(0xFF68A57F)],
                       ),
                       MetricCard(
-                        label: 'Safe to spend',
+                        label: l10n.safeToSpend,
                         value: CurrencyFormatter.inr(snapshot.safeToSpend),
                         gradient: const <Color>[Color(0xFF8CB6D9), Color(0xFF6A9BC8)],
                       ),
                       MetricCard(
-                        label: 'Weekly spend',
+                        label: l10n.weeklySpend,
                         value: CurrencyFormatter.inr(snapshot.weeklySpend),
                         gradient: const <Color>[Color(0xFFC6B4DF), Color(0xFFAA93CE)],
                       ),
                       MetricCard(
-                        label: 'Burn rate/day',
+                        label: l10n.burnRatePerDay,
                         value: CurrencyFormatter.inr(snapshot.burnRate),
                         gradient: const <Color>[Color(0xFFE8C59A), Color(0xFFD9AD74)],
                       ),
                     ],
                   ),
                   const SizedBox(height: 18),
-                  const SectionHeader(
-                    title: 'Smart Guidance',
-                    subtitle: 'Tap any icon to learn a quick finance tip',
+                  SectionHeader(
+                    title: l10n.smartGuidance,
+                    subtitle: l10n.smartGuidanceSubtitle,
                   ),
                   const SizedBox(height: 10),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: const <Widget>[
+                    children: <Widget>[
                       _GuidanceTipItem(
                         icon: Icons.shield_outlined,
-                        label: 'ATM Safety',
-                        tip:
-                            'Always cover PIN entry and avoid ATMs with loose keypads or suspicious devices.',
+                        label: l10n.tipAtmSafety,
+                        tip: l10n.tipAtmSafetyBody,
                       ),
                       _GuidanceTipItem(
                         icon: Icons.credit_card,
-                        label: 'Credit Score',
-                        tip:
-                            'Pay bills before due date and keep utilization low to improve your credit score.',
+                        label: l10n.tipCreditScore,
+                        tip: l10n.tipCreditScoreBody,
                       ),
                       _GuidanceTipItem(
                         icon: Icons.savings_outlined,
-                        label: 'Budgeting',
-                        tip:
-                            'Follow 50/30/20: needs, wants, and savings to keep spending balanced.',
+                        label: l10n.tipBudgeting,
+                        tip: l10n.tipBudgetingBody,
                       ),
                       _GuidanceTipItem(
                         icon: Icons.trending_up,
-                        label: 'Investing',
-                        tip:
-                            'Invest small amounts regularly and stay consistent for long-term growth.',
+                        label: l10n.tipInvesting,
+                        tip: l10n.tipInvestingBody,
                       ),
                     ],
                   ),
                   const SizedBox(height: 18),
-                  const SectionHeader(
-                    title: 'Top Spendings',
-                    subtitle: 'Most active categories',
+                  SectionHeader(
+                    title: l10n.topSpendings,
+                    subtitle: l10n.topSpendingsSubtitle,
                   ),
                   const SizedBox(height: 10),
                   SizedBox(
@@ -268,17 +269,17 @@ class DashboardScreen extends ConsumerWidget {
                     child: _topSpendingsRow(context, snapshot.categoryBreakdown),
                   ),
                   const SizedBox(height: 18),
-                  const SectionHeader(
-                    title: 'Connected Accounts',
-                    subtitle: 'Bank + UPI + cash balances',
+                  SectionHeader(
+                    title: l10n.connectedAccounts,
+                    subtitle: l10n.connectedAccountsSubtitle,
                   ),
                   const SizedBox(height: 10),
                   accountsAsync.when(
                     data: (List<Account> accounts) {
                       if (accounts.isEmpty) {
-                        return const EmptyState(
-                          title: 'No accounts yet',
-                          message: 'Create accounts to view unified balances.',
+                        return EmptyState(
+                          title: l10n.noAccountsYet,
+                          message: l10n.noAccountsYetBody,
                           icon: Icons.account_balance_wallet,
                         );
                       }
@@ -292,7 +293,7 @@ class DashboardScreen extends ConsumerWidget {
                               ),
                               title: Text(item.name),
                               subtitle: Text(
-                                '${item.provider ?? 'wallet'} • ${item.accountType.toUpperCase()}',
+                                '${item.provider ?? l10n.wallet} • ${item.accountType.toUpperCase()}',
                               ),
                               trailing: Text(
                                 CurrencyFormatter.inr(item.balance),
@@ -307,12 +308,12 @@ class DashboardScreen extends ConsumerWidget {
                       );
                     },
                     loading: () => const Center(child: CircularProgressIndicator()),
-                    error: (Object error, StackTrace stackTrace) => Text('Error: $error'),
+                    error: (Object error, StackTrace stackTrace) => Text('${l10n.errorPrefix}: $error'),
                   ),
                   const SizedBox(height: 18),
-                  const SectionHeader(
-                    title: 'Monthly Spending Trend',
-                    subtitle: 'Month-over-month analysis',
+                  SectionHeader(
+                    title: l10n.monthlySpendingTrend,
+                    subtitle: l10n.monthlySpendingTrendSubtitle,
                   ),
                   const SizedBox(height: 10),
                   Card(
@@ -323,10 +324,14 @@ class DashboardScreen extends ConsumerWidget {
                         children: <Widget>[
                           Text(
                             snapshot.previousMonthSpend <= 0
-                                ? 'No previous month baseline yet'
+                                ? l10n.noPreviousMonthBaseline
                                 : snapshot.isMonthlySpendUp
-                                    ? 'Spending increased by ${snapshot.monthlyTrendPercent.abs().toStringAsFixed(1)}%'
-                                    : 'Spending decreased by ${snapshot.monthlyTrendPercent.abs().toStringAsFixed(1)}%',
+                                    ? l10n.spendingIncreasedBy(
+                                        snapshot.monthlyTrendPercent.abs().toStringAsFixed(1),
+                                      )
+                                    : l10n.spendingDecreasedBy(
+                                        snapshot.monthlyTrendPercent.abs().toStringAsFixed(1),
+                                      ),
                             style: Theme.of(context).textTheme.titleSmall?.copyWith(
                                   fontWeight: FontWeight.w700,
                                   color: snapshot.isMonthlySpendUp
@@ -338,9 +343,9 @@ class DashboardScreen extends ConsumerWidget {
                           SizedBox(
                             height: 220,
                             child: snapshot.monthlySpendEntries.isEmpty
-                                ? const EmptyState(
-                                    title: 'Not enough monthly data',
-                                    message: 'Generate or add transactions to visualize spend trend.',
+                                ? EmptyState(
+                                  title: l10n.notEnoughMonthlyData,
+                                  message: l10n.notEnoughMonthlyDataBody,
                                     icon: Icons.bar_chart,
                                   )
                                 : BarChart(
@@ -400,17 +405,17 @@ class DashboardScreen extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(height: 18),
-                  const SectionHeader(
-                    title: 'Category Split (30d)',
-                    subtitle: 'Spending by category',
+                  SectionHeader(
+                    title: l10n.categorySplit30d,
+                    subtitle: l10n.categorySplitSubtitle,
                   ),
                   const SizedBox(height: 10),
                   SizedBox(
                     height: 220,
                     child: snapshot.categoryBreakdown.isEmpty
-                        ? const EmptyState(
-                            title: 'No category data yet',
-                            message: 'Add transactions to unlock category insights.',
+                        ? EmptyState(
+                          title: l10n.noCategoryDataYet,
+                          message: l10n.noCategoryDataYetBody,
                             icon: Icons.pie_chart,
                           )
                         : PieChart(
@@ -422,15 +427,15 @@ class DashboardScreen extends ConsumerWidget {
                           ),
                   ),
                   const SizedBox(height: 18),
-                  const SectionHeader(
-                    title: 'Recent Activity',
-                    subtitle: 'Latest transactions',
+                  SectionHeader(
+                    title: l10n.recentActivity,
+                    subtitle: l10n.latestTransactions,
                   ),
                   const SizedBox(height: 8),
                   if (txList.isEmpty)
-                    const EmptyState(
-                      title: 'No transactions found',
-                      message: 'Add your first expense or income to start tracking.',
+                    EmptyState(
+                      title: l10n.noTransactionsFound,
+                      message: l10n.noTransactionsFoundBody,
                       icon: Icons.receipt_long,
                     )
                   else

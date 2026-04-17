@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:student_fin_os/core/utils/currency_formatter.dart';
 import 'package:student_fin_os/core/widgets/empty_state.dart';
 import 'package:student_fin_os/core/widgets/section_header.dart';
+import 'package:student_fin_os/l10n/app_localizations.dart';
 import 'package:student_fin_os/models/account.dart';
 import 'package:student_fin_os/models/finance_enums.dart';
 import 'package:student_fin_os/models/finance_transaction.dart';
@@ -18,6 +19,7 @@ class AccountAggregatorScreen extends ConsumerStatefulWidget {
 class _AccountAggregatorScreenState extends ConsumerState<AccountAggregatorScreen> {
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context)!;
     final List<Account> accounts = ref.watch(accountsProvider).value ?? const <Account>[];
     final List<FinanceTransaction> txs =
         ref.watch(transactionsProvider).value ?? const <FinanceTransaction>[];
@@ -48,7 +50,7 @@ class _AccountAggregatorScreenState extends ConsumerState<AccountAggregatorScree
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   Text(
-                    'Unified Accounts',
+                    l10n.unifiedAccounts,
                     style: Theme.of(context)
                         .textTheme
                         .titleLarge
@@ -56,7 +58,7 @@ class _AccountAggregatorScreenState extends ConsumerState<AccountAggregatorScree
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Manage bank, UPI and cash balances in one place.',
+                    l10n.unifiedAccountsSubtitle,
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                   const SizedBox(height: 12),
@@ -69,21 +71,21 @@ class _AccountAggregatorScreenState extends ConsumerState<AccountAggregatorScree
                         icon: Icons.account_balance_wallet,
                         label: CurrencyFormatter.inr(totalBalance),
                       ),
-                      _chip(context, icon: Icons.account_balance, label: '$bankAccounts bank'),
-                      _chip(context, icon: Icons.qr_code_2, label: '$upiAccounts upi'),
+                      _chip(context, icon: Icons.account_balance, label: l10n.bankCount(bankAccounts)),
+                      _chip(context, icon: Icons.qr_code_2, label: l10n.upiCount(upiAccounts)),
                     ],
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 12),
-            const SectionHeader(
-              title: 'Account Health',
-              subtitle: 'Live balances and latest activity',
+            SectionHeader(
+              title: l10n.accountHealth,
+              subtitle: l10n.accountHealthSubtitle,
             ),
             const SizedBox(height: 6),
             Text(
-              'Live mode: account balances and transactions update in real time via Firestore streams.',
+              l10n.liveModeDescription,
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     color: Theme.of(context).colorScheme.primary,
                     fontWeight: FontWeight.w700,
@@ -92,9 +94,9 @@ class _AccountAggregatorScreenState extends ConsumerState<AccountAggregatorScree
             const SizedBox(height: 12),
             Expanded(
               child: accounts.isEmpty
-                  ? const EmptyState(
-                      title: 'No accounts found',
-                      message: 'Add an account from the activity flow to start tracking.',
+                  ? EmptyState(
+                    title: l10n.noAccountsFound,
+                    message: l10n.noAccountsFoundBody,
                       icon: Icons.account_balance_wallet,
                     )
                   : ListView.builder(
@@ -132,13 +134,13 @@ class _AccountAggregatorScreenState extends ConsumerState<AccountAggregatorScree
                                                 ?.copyWith(fontWeight: FontWeight.w700),
                                           ),
                                           Text(
-                                            '${account.provider ?? 'wallet'} • ${account.accountType.toUpperCase()} • ${byAccount.length} txns',
+                                            '${account.provider ?? l10n.wallet} • ${account.accountType.toUpperCase()} • ${l10n.transactionsShort(byAccount.length)}',
                                             style: Theme.of(context).textTheme.bodySmall,
                                           ),
                                           if (latest != null) ...<Widget>[
                                             const SizedBox(height: 2),
                                             Text(
-                                              'Last: ${latest.title}',
+                                              '${l10n.last}: ${latest.title}',
                                               style: Theme.of(context).textTheme.bodySmall,
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
@@ -159,8 +161,8 @@ class _AccountAggregatorScreenState extends ConsumerState<AccountAggregatorScree
                                 const SizedBox(height: 10),
                                 Text(
                                   latest == null
-                                      ? 'No recent activity.'
-                                      : 'Latest: ${latest.category} • ${CurrencyFormatter.inr(latest.amount)}',
+                                      ? l10n.noRecentActivity
+                                      : '${l10n.latest}: ${latest.category} • ${CurrencyFormatter.inr(latest.amount)}',
                                   style: Theme.of(context).textTheme.bodySmall,
                                 ),
                               ],

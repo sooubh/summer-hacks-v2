@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:student_fin_os/core/utils/currency_formatter.dart';
 import 'package:student_fin_os/core/widgets/empty_state.dart';
 import 'package:student_fin_os/core/widgets/section_header.dart';
+import 'package:student_fin_os/l10n/app_localizations.dart';
 import 'package:student_fin_os/models/savings_goal.dart';
 import 'package:student_fin_os/providers/dashboard_providers.dart';
 import 'package:student_fin_os/providers/savings_providers.dart';
@@ -13,6 +14,7 @@ class SavingsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final AppLocalizations l10n = AppLocalizations.of(context)!;
     final List<SavingsGoal> goals = ref.watch(savingsGoalsProvider).value ?? const <SavingsGoal>[];
     final double safeToSpend = ref.watch(safeToSpendProvider);
 
@@ -38,7 +40,7 @@ class SavingsScreen extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   Text(
-                    'Unified Goals',
+                    l10n.unifiedGoals,
                     style: Theme.of(context)
                         .textTheme
                         .titleLarge
@@ -46,7 +48,7 @@ class SavingsScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Plan savings targets directly from your unified account platform.',
+                    l10n.unifiedGoalsSubtitle,
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                 ],
@@ -55,16 +57,16 @@ class SavingsScreen extends ConsumerWidget {
             const SizedBox(height: 12),
             Row(
               children: <Widget>[
-                const Expanded(
+                Expanded(
                   child: SectionHeader(
-                    title: 'Savings goals',
-                    subtitle: 'Plan goals without killing daily life',
+                    title: l10n.savingsGoals,
+                    subtitle: l10n.savingsGoalsSubtitle,
                   ),
                 ),
                 FilledButton.icon(
                   onPressed: () => _openCreateGoalDialog(context, ref),
                   icon: const Icon(Icons.savings),
-                  label: const Text('New goal'),
+                  label: Text(l10n.newGoal),
                 ),
               ],
             ),
@@ -72,8 +74,8 @@ class SavingsScreen extends ConsumerWidget {
             Card(
               child: ListTile(
                 leading: const Icon(Icons.account_balance),
-                title: const Text('Safe to spend now'),
-                subtitle: const Text('After reserve + active goal allocation'),
+                title: Text(l10n.safeToSpendNow),
+                subtitle: Text(l10n.safeToSpendNowSubtitle),
                 trailing: Text(
                   CurrencyFormatter.inr(safeToSpend),
                   style: Theme.of(context)
@@ -86,9 +88,9 @@ class SavingsScreen extends ConsumerWidget {
             const SizedBox(height: 10),
             Expanded(
               child: goals.isEmpty
-                  ? const EmptyState(
-                      title: 'No savings goals yet',
-                      message: 'Set up your first goal, like semester fee buffer or a new laptop.',
+                  ? EmptyState(
+                    title: l10n.noSavingsGoalsYet,
+                    message: l10n.noSavingsGoalsYetBody,
                       icon: Icons.flag,
                     )
                   : ListView.builder(
@@ -121,8 +123,8 @@ class SavingsScreen extends ConsumerWidget {
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: <Widget>[
-                                    Text('Saved ${CurrencyFormatter.inr(goal.savedAmount)}'),
-                                    Text('Target ${CurrencyFormatter.inr(goal.targetAmount)}'),
+                                    Text(l10n.savedAmount(CurrencyFormatter.inr(goal.savedAmount))),
+                                    Text(l10n.targetAmount(CurrencyFormatter.inr(goal.targetAmount))),
                                   ],
                                 ),
                                 const SizedBox(height: 8),
@@ -162,13 +164,14 @@ class SavingsScreen extends ConsumerWidget {
     String goalId,
     double amount,
   ) async {
+    final AppLocalizations l10n = AppLocalizations.of(context)!;
     await ref.read(savingsControllerProvider.notifier).addContribution(
           goalId: goalId,
           amount: amount,
         );
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Added ${CurrencyFormatter.inr(amount)} to goal')),
+        SnackBar(content: Text(l10n.addedToGoal(CurrencyFormatter.inr(amount)))),
       );
     }
   }
@@ -180,24 +183,25 @@ class SavingsScreen extends ConsumerWidget {
     await showDialog<void>(
       context: context,
       builder: (BuildContext context) {
+        final AppLocalizations l10n = AppLocalizations.of(context)!;
         return AlertDialog(
-          title: const Text('Create goal'),
+          title: Text(l10n.createGoal),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              TextField(controller: title, decoration: const InputDecoration(labelText: 'Goal title')),
+              TextField(controller: title, decoration: InputDecoration(labelText: l10n.goalTitle)),
               const SizedBox(height: 10),
               TextField(
                 controller: target,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(labelText: 'Target amount'),
+                decoration: InputDecoration(labelText: l10n.targetAmountLabel),
               ),
             ],
           ),
           actions: <Widget>[
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
+              child: Text(l10n.cancel),
             ),
             FilledButton(
               onPressed: () async {
@@ -214,7 +218,7 @@ class SavingsScreen extends ConsumerWidget {
                   Navigator.of(context).pop();
                 }
               },
-              child: const Text('Create'),
+              child: Text(l10n.create),
             ),
           ],
         );

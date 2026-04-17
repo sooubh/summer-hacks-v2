@@ -2,6 +2,19 @@
   "@@locale": "en",
   "appTitle": "Student Financial OS",
   "appName": "Student Financial OS",
+  "profile": "Profile",
+  "bank": "Bank",
+  "upi": "UPI",
+  "cash": "Cash",
+  "wallet": "Wallet",
+  "totalBalance": "Total balance",
+  "income": "Income",
+  "spent": "Spent",
+  "safeToSpend": "Safe to spend",
+  "weeklySpend": "Weekly spend",
+  "burnRatePerDay": "Burn rate/day",
+  "errorPrefix": "Error",
+
   "loginTagline": "Track everything. Split faster. Save smarter.",
   "collegeEmailLabel": "College email",
   "collegeEmailHint": "you@college.edu",
@@ -20,5 +33,172 @@
   "languageEnglish": "English",
   "languageHindi": "Hindi",
   "languageMarathi": "Marathi",
-  "signOut": "Sign out"
+  "signOut": "Sign out",
+
+  "dashboardUnifiedPlatform": "Unified Platform",
+  "dashboardOneCleanView": "One clean financial view across all your accounts.",
+  "dashboardConnectedToFeed": "Connected Accounts → Unified Feed",
+  "dashboardAccountsTransactions": "Accounts: {accountCount} • Transactions: {transactionCount}",
+  "@dashboardAccountsTransactions": {
+    "placeholders": {
+      "accountCount": {"type": "int"},
+      "transactionCount": {"type": "int"}
+    }
+  },
+  "dashboardLiveUpdates": "Live updates from Firestore streams",
+  "dashboardNoSourcesYet": "No sources yet",
+  "smartGuidance": "Smart Guidance",
+  "smartGuidanceSubtitle": "Tap any icon to learn a quick finance tip",
+  "tipAtmSafety": "ATM Safety",
+  "tipAtmSafetyBody": "Always cover PIN entry and avoid ATMs with loose keypads or suspicious devices.",
+  "tipCreditScore": "Credit Score",
+  "tipCreditScoreBody": "Pay bills before due date and keep utilization low to improve your credit score.",
+  "tipBudgeting": "Budgeting",
+  "tipBudgetingBody": "Follow 50/30/20: needs, wants, and savings to keep spending balanced.",
+  "tipInvesting": "Investing",
+  "tipInvestingBody": "Invest small amounts regularly and stay consistent for long-term growth.",
+  "topSpendings": "Top Spendings",
+  "topSpendingsSubtitle": "Most active categories",
+  "connectedAccounts": "Connected Accounts",
+  "connectedAccountsSubtitle": "Bank + UPI + cash balances",
+  "noAccountsYet": "No accounts yet",
+  "noAccountsYetBody": "Create accounts to view unified balances.",
+  "monthlySpendingTrend": "Monthly Spending Trend",
+  "monthlySpendingTrendSubtitle": "Month-over-month analysis",
+  "noPreviousMonthBaseline": "No previous month baseline yet",
+  "spendingIncreasedBy": "Spending increased by {percent}%",
+  "@spendingIncreasedBy": {
+    "placeholders": {
+      "percent": {"type": "String"}
+    }
+  },
+  "spendingDecreasedBy": "Spending decreased by {percent}%",
+  "@spendingDecreasedBy": {
+    "placeholders": {
+      "percent": {"type": "String"}
+    }
+  },
+  "notEnoughMonthlyData": "Not enough monthly data",
+  "notEnoughMonthlyDataBody": "Generate or add transactions to visualize spend trend.",
+  "categorySplit30d": "Category Split (30d)",
+  "categorySplitSubtitle": "Spending by category",
+  "noCategoryDataYet": "No category data yet",
+  "noCategoryDataYetBody": "Add transactions to unlock category insights.",
+  "recentActivity": "Recent Activity",
+  "latestTransactions": "Latest transactions",
+  "noTransactionsFound": "No transactions found",
+  "noTransactionsFoundBody": "Add your first expense or income to start tracking.",
+
+  "unifiedInsights": "Unified Insights",
+  "unifiedInsightsSubtitle": "Simple money tips you can act on right now.",
+  "urgent": "Urgent",
+  "headsUp": "Heads-up",
+  "fyi": "FYI",
+  "moneyFeed": "Money Feed",
+  "moneyFeedSubtitle": "Clear alerts + what to do next",
+  "refresh": "Refresh",
+  "balanceRunway": "Balance runway",
+  "balanceStable14Days": "You look stable for the next 14 days.",
+  "balanceTightAround": "At current pace, balance may get tight around {date}.",
+  "@balanceTightAround": {
+    "placeholders": {
+      "date": {"type": "String"}
+    }
+  },
+  "all": "All",
+  "noInsightsInFilter": "No insights in this filter",
+  "noInsightsInFilterBody": "Tap Refresh or switch filter to see your money tips.",
+  "actionPauseSpending": "Action: Pause non-essential spending today.",
+  "actionTightenBudget": "Action: Tighten this week budget slightly.",
+  "actionKeepHabit": "Action: Keep this habit going.",
+
+  "unifiedActivity": "Unified Activity",
+  "unifiedActivitySubtitle": "Track all account transactions in one consistent feed.",
+  "quickActions": "Quick Actions",
+  "quickActionsSubtitle": "Create focused transactions quickly",
+  "addTransaction": "Add transaction",
+  "quickQrEntry": "Quick QR entry",
+  "combinedActivity": "Combined Activity",
+  "noActivityYet": "No activity yet",
+  "transactionsCount": "{count} transactions",
+  "@transactionsCount": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "noTransactionsYet": "No transactions yet",
+  "noTransactionsYetBody": "Add your first transaction and start generating insights.",
+  "manual": "manual",
+  "auto": "auto",
+  "overrideCategory": "Override category",
+  "category": "Category",
+  "updateCategory": "Update category",
+  "title": "Title",
+  "amount": "Amount",
+  "sourceAccount": "Source account",
+  "expense": "Expense",
+  "tagsCommaSeparated": "Tags (comma-separated)",
+  "saveTransaction": "Save transaction",
+
+  "unifiedGoals": "Unified Goals",
+  "unifiedGoalsSubtitle": "Plan savings targets directly from your unified account platform.",
+  "savingsGoals": "Savings goals",
+  "savingsGoalsSubtitle": "Plan goals without killing daily life",
+  "newGoal": "New goal",
+  "safeToSpendNow": "Safe to spend now",
+  "safeToSpendNowSubtitle": "After reserve + active goal allocation",
+  "noSavingsGoalsYet": "No savings goals yet",
+  "noSavingsGoalsYetBody": "Set up your first goal, like semester fee buffer or a new laptop.",
+  "savedAmount": "Saved {amount}",
+  "@savedAmount": {
+    "placeholders": {
+      "amount": {"type": "String"}
+    }
+  },
+  "targetAmount": "Target {amount}",
+  "@targetAmount": {
+    "placeholders": {
+      "amount": {"type": "String"}
+    }
+  },
+  "addedToGoal": "Added {amount} to goal",
+  "@addedToGoal": {
+    "placeholders": {
+      "amount": {"type": "String"}
+    }
+  },
+  "createGoal": "Create goal",
+  "goalTitle": "Goal title",
+  "targetAmountLabel": "Target amount",
+  "cancel": "Cancel",
+  "create": "Create",
+
+  "unifiedAccounts": "Unified Accounts",
+  "unifiedAccountsSubtitle": "Manage bank, UPI and cash balances in one place.",
+  "bankCount": "{count} bank",
+  "@bankCount": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "upiCount": "{count} upi",
+  "@upiCount": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "accountHealth": "Account Health",
+  "accountHealthSubtitle": "Live balances and latest activity",
+  "liveModeDescription": "Live mode: account balances and transactions update in real time via Firestore streams.",
+  "noAccountsFound": "No accounts found",
+  "noAccountsFoundBody": "Add an account from the activity flow to start tracking.",
+  "transactionsShort": "{count} txns",
+  "@transactionsShort": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "last": "Last",
+  "latest": "Latest",
+  "noRecentActivity": "No recent activity."
 }

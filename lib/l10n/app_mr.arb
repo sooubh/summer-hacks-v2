@@ -2,6 +2,19 @@
   "@@locale": "mr",
   "appTitle": "स्टुडंट फायनान्शियल ओएस",
   "appName": "स्टुडंट फायनान्शियल ओएस",
+  "profile": "प्रोफाइल",
+  "bank": "बँक",
+  "upi": "यूपीआय",
+  "cash": "रोख",
+  "wallet": "वॉलेट",
+  "totalBalance": "एकूण शिल्लक",
+  "income": "उत्पन्न",
+  "spent": "खर्च",
+  "safeToSpend": "खर्चासाठी सुरक्षित",
+  "weeklySpend": "साप्ताहिक खर्च",
+  "burnRatePerDay": "बर्न रेट/दिवस",
+  "errorPrefix": "त्रुटी",
+
   "loginTagline": "सगळे ट्रॅक करा. खर्च वाटा. शहाणपणाने बचत करा.",
   "collegeEmailLabel": "कॉलेज ईमेल",
   "collegeEmailHint": "you@college.edu",
@@ -20,5 +33,172 @@
   "languageEnglish": "इंग्रजी",
   "languageHindi": "हिंदी",
   "languageMarathi": "मराठी",
-  "signOut": "साइन आउट"
+  "signOut": "साइन आउट",
+
+  "dashboardUnifiedPlatform": "युनिफाइड प्लॅटफॉर्म",
+  "dashboardOneCleanView": "तुमच्या सर्व खात्यांचा एक स्वच्छ आर्थिक आढावा.",
+  "dashboardConnectedToFeed": "कनेक्टेड अकाउंट्स → युनिफाइड फीड",
+  "dashboardAccountsTransactions": "अकाउंट्स: {accountCount} • ट्रान्झॅक्शन्स: {transactionCount}",
+  "@dashboardAccountsTransactions": {
+    "placeholders": {
+      "accountCount": {"type": "int"},
+      "transactionCount": {"type": "int"}
+    }
+  },
+  "dashboardLiveUpdates": "Firestore स्ट्रीम्समधून लाइव्ह अपडेट्स",
+  "dashboardNoSourcesYet": "अजून स्रोत नाहीत",
+  "smartGuidance": "स्मार्ट मार्गदर्शन",
+  "smartGuidanceSubtitle": "झटपट आर्थिक टिपसाठी कोणत्याही आयकॉनवर टॅप करा",
+  "tipAtmSafety": "एटीएम सुरक्षितता",
+  "tipAtmSafetyBody": "पिन टाकताना कीपॅड झाका आणि संशयास्पद एटीएम टाळा.",
+  "tipCreditScore": "क्रेडिट स्कोअर",
+  "tipCreditScoreBody": "बिले वेळेवर भरा आणि वापर कमी ठेवा.",
+  "tipBudgeting": "बजेटिंग",
+  "tipBudgetingBody": "50/30/20 नियम पाळा: गरजा, इच्छा आणि बचत.",
+  "tipInvesting": "गुंतवणूक",
+  "tipInvestingBody": "लहान रक्कम नियमितपणे गुंतवा आणि सातत्य ठेवा.",
+  "topSpendings": "टॉप खर्च",
+  "topSpendingsSubtitle": "सर्वाधिक सक्रिय श्रेणी",
+  "connectedAccounts": "कनेक्टेड अकाउंट्स",
+  "connectedAccountsSubtitle": "बँक + यूपीआय + रोख शिल्लक",
+  "noAccountsYet": "अजून अकाउंट नाही",
+  "noAccountsYetBody": "युनिफाइड शिल्लक पाहण्यासाठी अकाउंट तयार करा.",
+  "monthlySpendingTrend": "मासिक खर्च ट्रेंड",
+  "monthlySpendingTrendSubtitle": "महिना-निहाय विश्लेषण",
+  "noPreviousMonthBaseline": "मागील महिन्याचा बेसलाइन उपलब्ध नाही",
+  "spendingIncreasedBy": "खर्च {percent}% वाढला",
+  "@spendingIncreasedBy": {
+    "placeholders": {
+      "percent": {"type": "String"}
+    }
+  },
+  "spendingDecreasedBy": "खर्च {percent}% कमी झाला",
+  "@spendingDecreasedBy": {
+    "placeholders": {
+      "percent": {"type": "String"}
+    }
+  },
+  "notEnoughMonthlyData": "पुरेसा मासिक डेटा नाही",
+  "notEnoughMonthlyDataBody": "ट्रेंड पाहण्यासाठी ट्रान्झॅक्शन्स जोडा.",
+  "categorySplit30d": "श्रेणी विभाजन (30 दिवस)",
+  "categorySplitSubtitle": "श्रेणीप्रमाणे खर्च",
+  "noCategoryDataYet": "अजून श्रेणी डेटा नाही",
+  "noCategoryDataYetBody": "श्रेणी इनसाइट्ससाठी ट्रान्झॅक्शन्स जोडा.",
+  "recentActivity": "अलीकडील अॅक्टिव्हिटी",
+  "latestTransactions": "नवीनतम ट्रान्झॅक्शन्स",
+  "noTransactionsFound": "ट्रान्झॅक्शन सापडले नाही",
+  "noTransactionsFoundBody": "ट्रॅकिंग सुरू करण्यासाठी पहिला ट्रान्झॅक्शन जोडा.",
+
+  "unifiedInsights": "युनिफाइड इनसाइट्स",
+  "unifiedInsightsSubtitle": "आता लगेच वापरता येतील असे सोपे पैशाचे टिप्स.",
+  "urgent": "तातडीचे",
+  "headsUp": "सूचना",
+  "fyi": "माहितीसाठी",
+  "moneyFeed": "मनी फीड",
+  "moneyFeedSubtitle": "स्पष्ट अलर्ट + पुढे काय करावे",
+  "refresh": "रिफ्रेश",
+  "balanceRunway": "बॅलन्स रनवे",
+  "balanceStable14Days": "पुढील 14 दिवसांसाठी स्थिती स्थिर दिसते.",
+  "balanceTightAround": "सध्याच्या गतीनुसार {date} च्या आसपास बॅलन्स कमी पडू शकतो.",
+  "@balanceTightAround": {
+    "placeholders": {
+      "date": {"type": "String"}
+    }
+  },
+  "all": "सर्व",
+  "noInsightsInFilter": "या फिल्टरमध्ये इनसाइट्स नाहीत",
+  "noInsightsInFilterBody": "रिफ्रेश करा किंवा फिल्टर बदला.",
+  "actionPauseSpending": "क्रिया: आज अनावश्यक खर्च थांबवा.",
+  "actionTightenBudget": "क्रिया: या आठवड्याचा बजेट थोडा कमी करा.",
+  "actionKeepHabit": "क्रिया: ही चांगली सवय सुरू ठेवा.",
+
+  "unifiedActivity": "युनिफाइड अॅक्टिव्हिटी",
+  "unifiedActivitySubtitle": "सर्व अकाउंट ट्रान्झॅक्शन्स एकाच फीडमध्ये ट्रॅक करा.",
+  "quickActions": "क्विक अॅक्शन्स",
+  "quickActionsSubtitle": "जलद ट्रान्झॅक्शन्स तयार करा",
+  "addTransaction": "ट्रान्झॅक्शन जोडा",
+  "quickQrEntry": "क्विक QR एन्ट्री",
+  "combinedActivity": "कंबाइंड अॅक्टिव्हिटी",
+  "noActivityYet": "अजून अॅक्टिव्हिटी नाही",
+  "transactionsCount": "{count} ट्रान्झॅक्शन्स",
+  "@transactionsCount": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "noTransactionsYet": "अजून ट्रान्झॅक्शन्स नाहीत",
+  "noTransactionsYetBody": "पहिला ट्रान्झॅक्शन जोडा आणि इनसाइट्स सुरू करा.",
+  "manual": "मॅन्युअल",
+  "auto": "ऑटो",
+  "overrideCategory": "श्रेणी बदला",
+  "category": "श्रेणी",
+  "updateCategory": "श्रेणी अपडेट करा",
+  "title": "शीर्षक",
+  "amount": "रक्कम",
+  "sourceAccount": "स्रोत अकाउंट",
+  "expense": "खर्च",
+  "tagsCommaSeparated": "टॅग्स (कॉमा-सेपरेटेड)",
+  "saveTransaction": "ट्रान्झॅक्शन सेव्ह करा",
+
+  "unifiedGoals": "युनिफाइड गोल्स",
+  "unifiedGoalsSubtitle": "युनिफाइड प्लॅटफॉर्मवरून बचत लक्ष्य तयार करा.",
+  "savingsGoals": "बचत ध्येये",
+  "savingsGoalsSubtitle": "दैनंदिन जीवन बिघडवू न देता ध्येय ठरवा",
+  "newGoal": "नवे ध्येय",
+  "safeToSpendNow": "आत्ता खर्चासाठी सुरक्षित",
+  "safeToSpendNowSubtitle": "रिझर्व्ह + सक्रिय ध्येय वाटपानंतर",
+  "noSavingsGoalsYet": "अजून बचत ध्येय नाही",
+  "noSavingsGoalsYetBody": "पहिले ध्येय सेट करा, उदा. फी बफर किंवा लॅपटॉप.",
+  "savedAmount": "बचत {amount}",
+  "@savedAmount": {
+    "placeholders": {
+      "amount": {"type": "String"}
+    }
+  },
+  "targetAmount": "लक्ष्य {amount}",
+  "@targetAmount": {
+    "placeholders": {
+      "amount": {"type": "String"}
+    }
+  },
+  "addedToGoal": "ध्येयात {amount} जोडले",
+  "@addedToGoal": {
+    "placeholders": {
+      "amount": {"type": "String"}
+    }
+  },
+  "createGoal": "ध्येय तयार करा",
+  "goalTitle": "ध्येय शीर्षक",
+  "targetAmountLabel": "लक्ष्य रक्कम",
+  "cancel": "रद्द करा",
+  "create": "तयार करा",
+
+  "unifiedAccounts": "युनिफाइड अकाउंट्स",
+  "unifiedAccountsSubtitle": "बँक, यूपीआय आणि रोख शिल्लक एकाच ठिकाणी व्यवस्थापित करा.",
+  "bankCount": "{count} बँक",
+  "@bankCount": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "upiCount": "{count} यूपीआय",
+  "@upiCount": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "accountHealth": "अकाउंट हेल्थ",
+  "accountHealthSubtitle": "लाइव्ह शिल्लक आणि अलीकडील अॅक्टिव्हिटी",
+  "liveModeDescription": "लाइव्ह मोड: अकाउंट शिल्लक आणि ट्रान्झॅक्शन्स Firestore स्ट्रीम्सद्वारे रिअल-टाइममध्ये अपडेट होतात.",
+  "noAccountsFound": "अकाउंट सापडले नाही",
+  "noAccountsFoundBody": "ट्रॅकिंग सुरू करण्यासाठी अॅक्टिव्हिटीमधून अकाउंट जोडा.",
+  "transactionsShort": "{count} ट्रान्झॅक्शन",
+  "@transactionsShort": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "last": "मागील",
+  "latest": "नवीनतम",
+  "noRecentActivity": "अलीकडील अॅक्टिव्हिटी नाही."
 }
