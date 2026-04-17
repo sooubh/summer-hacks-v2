@@ -43,6 +43,10 @@ class _AccountAggregatorScreenState extends ConsumerState<AccountAggregatorScree
     final List<FinanceTransaction> txs =
         ref.watch(transactionsProvider).value ?? const <FinanceTransaction>[];
     final bool isBusy = ref.watch(simulationControllerProvider).isLoading;
+    final double totalBalance =
+        accounts.fold<double>(0, (double sum, Account item) => sum + item.balance);
+    final int upiAccounts = accounts.where((Account a) => a.type == AccountType.upi).length;
+    final int bankAccounts = accounts.where((Account a) => a.type == AccountType.bank).length;
 
     return SafeArea(
       child: Padding(
@@ -50,11 +54,56 @@ class _AccountAggregatorScreenState extends ConsumerState<AccountAggregatorScree
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            const SectionHeader(
-              title: 'Digital banking simulation',
-              subtitle: 'Virtual bank + UPI + cash account aggregator',
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                gradient: LinearGradient(
+                  colors: <Color>[
+                    Theme.of(context).colorScheme.primary.withValues(alpha: 0.24),
+                    Theme.of(context).colorScheme.secondary.withValues(alpha: 0.2),
+                  ],
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    'Digital Banking Hub',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleLarge
+                        ?.copyWith(fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Manage virtual bank, UPI and cash wallets. Trigger realistic mock transactions instantly.',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: <Widget>[
+                      _chip(
+                        context,
+                        icon: Icons.account_balance_wallet,
+                        label: CurrencyFormatter.inr(totalBalance),
+                      ),
+                      _chip(context, icon: Icons.account_balance, label: '$bankAccounts bank'),
+                      _chip(context, icon: Icons.qr_code_2, label: '$upiAccounts upi'),
+                    ],
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 12),
+            SectionHeader(
+              title: 'Simulation controls',
+              subtitle: isBusy ? 'Running action...' : 'Seed accounts and generate mock history',
+            ),
+            const SizedBox(height: 10),
             Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -80,9 +129,9 @@ class _AccountAggregatorScreenState extends ConsumerState<AccountAggregatorScree
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.account_balance),
-                      label: const Text('Seed accounts'),
-                    ),
-                    OutlinedButton.icon(
+                  label: const Text('Seed accounts'),
+                ),
+                OutlinedButton.icon(
                   onPressed: isBusy
                       ? null
                       : accounts.isEmpty
@@ -119,6 +168,8 @@ class _AccountAggregatorScreenState extends ConsumerState<AccountAggregatorScree
                         final List<FinanceTransaction> byAccount = txs
                             .where((FinanceTransaction tx) => tx.accountId == account.id)
                             .toList();
+                        final FinanceTransaction? latest =
+                            byAccount.isEmpty ? null : byAccount.first;
 
                         return Card(
                           margin: const EdgeInsets.only(bottom: 10),
@@ -146,7 +197,17 @@ class _AccountAggregatorScreenState extends ConsumerState<AccountAggregatorScree
                                           ),
                                           Text(
                                             '${account.provider ?? 'wallet'} • ${account.accountType.toUpperCase()} • ${byAccount.length} txns',
+                                            style: Theme.of(context).textTheme.bodySmall,
                                           ),
+                                          if (latest != null) ...<Widget>[
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              'Last: ${latest.title}',
+                                              style: Theme.of(context).textTheme.bodySmall,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ],
                                         ],
                                       ),
                                     ),
@@ -164,7 +225,9 @@ class _AccountAggregatorScreenState extends ConsumerState<AccountAggregatorScree
                                   spacing: 8,
                                   runSpacing: 8,
                                   children: <Widget>[
-                                    FilledButton.tonalIcon(
+                                    ActionChip(
+                                      avatar: const Icon(Icons.add_card, size: 18),
+                                      label: const Text('Credit'),
                                       onPressed: isBusy
                                           ? null
                                           : () {
@@ -175,10 +238,11 @@ class _AccountAggregatorScreenState extends ConsumerState<AccountAggregatorScree
                                                         amount: 1800,
                                                       );
                                             },
-                                      icon: const Icon(Icons.add_card),
-                                      label: const Text('Credit'),
                                     ),
-                                    FilledButton.tonalIcon(
+                                    ActionChip(
+                                      avatar:
+                                          const Icon(Icons.remove_circle_outline, size: 18),
+                                      label: const Text('Debit'),
                                       onPressed: isBusy
                                           ? null
                                           : () {
@@ -189,10 +253,10 @@ class _AccountAggregatorScreenState extends ConsumerState<AccountAggregatorScree
                                                         amount: 420,
                                                       );
                                             },
-                                      icon: const Icon(Icons.remove_circle_outline),
-                                      label: const Text('Debit'),
                                     ),
-                                    FilledButton.tonalIcon(
+                                    ActionChip(
+                                      avatar: const Icon(Icons.qr_code_2, size: 18),
+                                      label: const Text('UPI pay'),
                                       onPressed: isBusy
                                           ? null
                                           : account.type == AccountType.upi
@@ -205,8 +269,6 @@ class _AccountAggregatorScreenState extends ConsumerState<AccountAggregatorScree
                                                   );
                                             }
                                           : null,
-                                      icon: const Icon(Icons.qr_code_2),
-                                      label: const Text('UPI pay'),
                                     ),
                                   ],
                                 ),
@@ -232,5 +294,28 @@ class _AccountAggregatorScreenState extends ConsumerState<AccountAggregatorScree
       case AccountType.cash:
         return Icons.payments;
     }
+  }
+
+  Widget _chip(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(icon, size: 15),
+          const SizedBox(width: 6),
+          Text(label, style: Theme.of(context).textTheme.labelMedium),
+        ],
+      ),
+    );
   }
 }

@@ -5,6 +5,7 @@ import 'package:student_fin_os/core/utils/currency_formatter.dart';
 import 'package:student_fin_os/core/widgets/empty_state.dart';
 import 'package:student_fin_os/core/widgets/metric_card.dart';
 import 'package:student_fin_os/core/widgets/section_header.dart';
+import 'package:student_fin_os/models/account.dart';
 import 'package:student_fin_os/models/finance_transaction.dart';
 import 'package:student_fin_os/providers/dashboard_providers.dart';
 
@@ -26,6 +27,57 @@ class DashboardScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(18),
+                      gradient: LinearGradient(
+                        colors: <Color>[
+                          Theme.of(context).colorScheme.primary.withValues(alpha: 0.24),
+                          Theme.of(context).colorScheme.secondary.withValues(alpha: 0.18),
+                        ],
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          'Financial Command Center',
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleLarge
+                              ?.copyWith(fontWeight: FontWeight.w800),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'All accounts, spending trends, and transaction activity in one place.',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: <Widget>[
+                            _infoChip(
+                              context,
+                              icon: Icons.account_balance_wallet,
+                              label: 'Top category: ${snapshot.topCategory.toUpperCase()}',
+                            ),
+                            _infoChip(
+                              context,
+                              icon: snapshot.isMonthlySpendUp
+                                  ? Icons.trending_up
+                                  : Icons.trending_down,
+                              label:
+                                  '${snapshot.isMonthlySpendUp ? 'Up' : 'Down'} ${snapshot.monthlyTrendPercent.abs().toStringAsFixed(1)}% month-on-month',
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                   Text(
                     'Money cockpit',
                     style: Theme.of(context)
@@ -76,7 +128,7 @@ class DashboardScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 10),
                   accountsAsync.when(
-                    data: (List<dynamic> accounts) {
+                    data: (List<Account> accounts) {
                       if (accounts.isEmpty) {
                         return const EmptyState(
                           title: 'No accounts yet',
@@ -86,16 +138,17 @@ class DashboardScreen extends ConsumerWidget {
                         );
                       }
                       return Column(
-                        children: accounts.map((dynamic account) {
-                          final item = account;
+                        children: accounts.map((Account item) {
                           return Card(
                             margin: const EdgeInsets.only(bottom: 8),
                             child: ListTile(
-                              leading: const Icon(Icons.account_balance_wallet),
-                              title: Text(item.name as String),
-                              subtitle: Text(item.provider?.toString() ?? 'wallet'),
+                              leading: CircleAvatar(
+                                child: Icon(_iconForAccountType(item.accountType)),
+                              ),
+                              title: Text(item.name),
+                              subtitle: Text(item.provider ?? 'wallet'),
                               trailing: Text(
-                                CurrencyFormatter.inr(item.balance as num),
+                                CurrencyFormatter.inr(item.balance),
                                 style: Theme.of(context)
                                     .textTheme
                                     .titleSmall
@@ -149,8 +202,20 @@ class DashboardScreen extends ConsumerWidget {
                                     BarChartData(
                                       barGroups:
                                           _buildMonthlyBars(snapshot.monthlySpendEntries),
+                                      maxY: _monthlyMaxY(snapshot.monthlySpendEntries),
                                       borderData: FlBorderData(show: false),
-                                      gridData: const FlGridData(show: false),
+                                      gridData: FlGridData(
+                                        show: true,
+                                        drawVerticalLine: false,
+                                        horizontalInterval:
+                                            _monthlyMaxY(snapshot.monthlySpendEntries) / 4,
+                                        getDrawingHorizontalLine: (double value) {
+                                          return FlLine(
+                                            color: Colors.white.withValues(alpha: 0.08),
+                                            strokeWidth: 1,
+                                          );
+                                        },
+                                      ),
                                       titlesData: FlTitlesData(
                                         rightTitles: const AxisTitles(
                                           sideTitles: SideTitles(showTitles: false),
@@ -267,6 +332,19 @@ class DashboardScreen extends ConsumerWidget {
     });
   }
 
+  double _monthlyMaxY(List<MapEntry<String, double>> entries) {
+    if (entries.isEmpty) {
+      return 1000;
+    }
+    double max = 0;
+    for (final MapEntry<String, double> entry in entries) {
+      if (entry.value > max) {
+        max = entry.value;
+      }
+    }
+    return max * 1.2;
+  }
+
   String _shortMonth(String monthKey) {
     final List<String> parts = monthKey.split('-');
     if (parts.length != 2) {
@@ -315,5 +393,43 @@ class DashboardScreen extends ConsumerWidget {
       index++;
       return section;
     }).toList();
+  }
+
+  Widget _infoChip(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(icon, size: 15),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelMedium,
+          ),
+        ],
+      ),
+    );
+  }
+
+  IconData _iconForAccountType(String accountType) {
+    switch (accountType.toLowerCase()) {
+      case 'bank':
+        return Icons.account_balance;
+      case 'upi':
+        return Icons.qr_code_2;
+      case 'cash':
+      default:
+        return Icons.payments;
+    }
   }
 }
