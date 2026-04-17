@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 enum AssistantRole { user, assistant }
 
 extension AssistantRoleWire on AssistantRole {
@@ -76,6 +78,75 @@ class VoiceAssistantReply {
   final List<String> speechChunks;
 }
 
+enum VoiceLiveEventType {
+  setupComplete,
+  textDelta,
+  audioChunk,
+  turnComplete,
+  interrupted,
+  disconnected,
+  error,
+}
+
+class VoiceLiveEvent {
+  const VoiceLiveEvent._({
+    required this.type,
+    this.textDelta = '',
+    this.audioChunk,
+    this.audioSampleRate,
+    this.fullText = '',
+    this.errorMessage,
+  });
+
+  factory VoiceLiveEvent.setupComplete() {
+    return const VoiceLiveEvent._(type: VoiceLiveEventType.setupComplete);
+  }
+
+  factory VoiceLiveEvent.textDelta(String delta) {
+    return VoiceLiveEvent._(
+      type: VoiceLiveEventType.textDelta,
+      textDelta: delta,
+    );
+  }
+
+  factory VoiceLiveEvent.audioChunk(Uint8List chunk, {int? sampleRate}) {
+    return VoiceLiveEvent._(
+      type: VoiceLiveEventType.audioChunk,
+      audioChunk: chunk,
+      audioSampleRate: sampleRate,
+    );
+  }
+
+  factory VoiceLiveEvent.turnComplete(String fullText) {
+    return VoiceLiveEvent._(
+      type: VoiceLiveEventType.turnComplete,
+      fullText: fullText,
+    );
+  }
+
+  factory VoiceLiveEvent.interrupted() {
+    return const VoiceLiveEvent._(type: VoiceLiveEventType.interrupted);
+  }
+
+  factory VoiceLiveEvent.disconnected() {
+    return const VoiceLiveEvent._(type: VoiceLiveEventType.disconnected);
+  }
+
+  factory VoiceLiveEvent.error(String message) {
+    return VoiceLiveEvent._(
+      type: VoiceLiveEventType.error,
+      errorMessage: message,
+    );
+  }
+
+  final VoiceLiveEventType type;
+  final String textDelta;
+  final Uint8List? audioChunk;
+  final int? audioSampleRate;
+  final String fullText;
+  final String? errorMessage;
+}
+
 enum VoiceAssistantStatus { idle, listening, processing, speaking, error }
 
 class ChatAssistantState {
@@ -135,6 +206,8 @@ class VoiceAssistantState {
     required this.status,
     required this.transcript,
     required this.messages,
+    required this.liveSessionReady,
+    required this.streamingReply,
     this.activeModel,
     this.errorMessage,
   });
@@ -144,12 +217,16 @@ class VoiceAssistantState {
       status: VoiceAssistantStatus.idle,
       transcript: '',
       messages: <AssistantMessage>[],
+      liveSessionReady: false,
+      streamingReply: '',
     );
   }
 
   final VoiceAssistantStatus status;
   final String transcript;
   final List<AssistantMessage> messages;
+  final bool liveSessionReady;
+  final String streamingReply;
   final String? activeModel;
   final String? errorMessage;
 
@@ -157,6 +234,8 @@ class VoiceAssistantState {
     VoiceAssistantStatus? status,
     String? transcript,
     List<AssistantMessage>? messages,
+    bool? liveSessionReady,
+    String? streamingReply,
     String? activeModel,
     String? errorMessage,
     bool clearError = false,
@@ -165,6 +244,8 @@ class VoiceAssistantState {
       status: status ?? this.status,
       transcript: transcript ?? this.transcript,
       messages: messages ?? this.messages,
+      liveSessionReady: liveSessionReady ?? this.liveSessionReady,
+      streamingReply: streamingReply ?? this.streamingReply,
       activeModel: activeModel ?? this.activeModel,
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
     );

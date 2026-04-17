@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:student_fin_os/core/config/ai_runtime_config.dart';
 import 'package:student_fin_os/models/assistant_models.dart';
 import 'package:student_fin_os/models/finance_enums.dart';
 import 'package:student_fin_os/models/finance_transaction.dart';
@@ -237,15 +238,117 @@ class VoiceAssistantController extends Notifier<VoiceAssistantState> {
     state = state.copyWith(transcript: transcript, clearError: true);
   }
 
+  void setLiveSessionReady(bool ready) {
+    state = state.copyWith(
+      liveSessionReady: ready,
+      activeModel: ready ? AiRuntimeConfig.voiceModel : state.activeModel,
+      clearError: true,
+    );
+  }
+
+  void startLiveUserTurn(String rawTranscript) {
+    final String transcript = rawTranscript.trim();
+    if (transcript.isEmpty || state.status == VoiceAssistantStatus.processing) {
+      return;
+    }
+
+    final List<AssistantMessage> messages = <AssistantMessage>[
+      ...state.messages,
+      _newAssistantMessage(ref, role: AssistantRole.user, content: transcript),
+    ];
+
+    state = state.copyWith(
+      status: VoiceAssistantStatus.processing,
+      transcript: transcript,
+      messages: messages,
+      streamingReply: '',
+      clearError: true,
+    );
+  }
+
+  void startLiveAudioTurn({String displayText = '[Voice input]'}) {
+    if (state.status == VoiceAssistantStatus.processing) {
+      return;
+    }
+
+    final List<AssistantMessage> messages = <AssistantMessage>[
+      ...state.messages,
+      _newAssistantMessage(
+        ref,
+        role: AssistantRole.user,
+        content: displayText,
+      ),
+    ];
+
+    state = state.copyWith(
+      status: VoiceAssistantStatus.processing,
+      transcript: '',
+      messages: messages,
+      streamingReply: '',
+      clearError: true,
+    );
+  }
+
+  void updateStreamingReply(String partialReply) {
+    state = state.copyWith(
+      status: VoiceAssistantStatus.speaking,
+      transcript: '',
+      streamingReply: partialReply,
+      activeModel: AiRuntimeConfig.voiceModel,
+      clearError: true,
+    );
+  }
+
+  void completeStreamingReply(String fullReply) {
+    final String normalized = fullReply.trim();
+    if (normalized.isEmpty) {
+      state = state.copyWith(
+        status: VoiceAssistantStatus.processing,
+        transcript: '',
+        streamingReply: '',
+        activeModel: AiRuntimeConfig.voiceModel,
+        clearError: true,
+      );
+      return;
+    }
+
+    final AssistantMessage assistantMessage = _newAssistantMessage(
+      ref,
+      role: AssistantRole.assistant,
+      content: normalized,
+    );
+
+    state = state.copyWith(
+      status: VoiceAssistantStatus.speaking,
+      transcript: '',
+      streamingReply: '',
+      messages: <AssistantMessage>[...state.messages, assistantMessage],
+      activeModel: AiRuntimeConfig.voiceModel,
+      clearError: true,
+    );
+  }
+
+  void clearStreamingReply() {
+    state = state.copyWith(
+      status: VoiceAssistantStatus.idle,
+      streamingReply: '',
+      clearError: true,
+    );
+  }
+
   void setError(String message) {
     state = state.copyWith(
       status: VoiceAssistantStatus.error,
+      streamingReply: '',
       errorMessage: message,
     );
   }
 
   void clearConversation() {
-    state = VoiceAssistantState.initial();
+    state = VoiceAssistantState.initial().copyWith(
+      liveSessionReady: state.liveSessionReady,
+      activeModel: state.activeModel,
+    );
   }
 
   Future<VoiceAssistantReply?> submitTranscript(String rawTranscript) async {
@@ -263,6 +366,7 @@ class VoiceAssistantController extends Notifier<VoiceAssistantState> {
       status: VoiceAssistantStatus.processing,
       transcript: transcript,
       messages: messages,
+      streamingReply: '',
       clearError: true,
     );
 
@@ -285,6 +389,7 @@ class VoiceAssistantController extends Notifier<VoiceAssistantState> {
       state = state.copyWith(
         status: VoiceAssistantStatus.idle,
         transcript: '',
+        streamingReply: '',
         messages: <AssistantMessage>[...messages, assistantMessage],
         activeModel: reply.modelUsed,
         clearError: true,

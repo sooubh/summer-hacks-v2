@@ -29,7 +29,7 @@ Production-ready blueprint and scaffold for a personal finance app focused on In
 - Cash-flow projection and low-balance prediction
 - Notification preference system + backend reminder automation
 - Gemini chat assistant with fast/deep model routing, context-aware replies, and prompt suggestions
-- Gemini voice assistant with microphone input, speech responses, stateful voice UX, and barge-in
+- Gemini Live voice assistant with persistent websocket session, raw PCM microphone streaming, direct model audio output, and barge-in
 
 ## Start locally
 
@@ -51,6 +51,10 @@ Production-ready blueprint and scaffold for a personal finance app focused on In
 	  - `GEMINI_CHAT_FAST_MODEL=models/gemini-2.5-flash`
 	  - `GEMINI_CHAT_DEEP_MODEL=models/gemini-2.5-pro`
 	  - `GEMINI_VOICE_MODEL=models/gemini-3.1-flash-live-preview`
+	  - Optional Live audio tuning:
+	    - `GEMINI_LIVE_VOICE_NAME=Puck`
+	    - `GEMINI_LIVE_INPUT_SAMPLE_RATE=16000`
+	    - `GEMINI_LIVE_OUTPUT_SAMPLE_RATE=24000`
 	- Then run:
 	  - `flutter run -d chrome`
 	- or:
