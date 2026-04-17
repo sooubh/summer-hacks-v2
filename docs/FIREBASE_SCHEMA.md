@@ -38,7 +38,7 @@
   - `updatedAt`: timestamp
   - `tags`: string[]
   - `note`: string?
-  - `source`: string (`manual`, `qr`, `simulation`)
+  - `source`: string (`manual`, `qr`)
   - `channel`: string (`cash`, `card`, `bank_transfer`, `upi`)
   - `isCategoryOverridden`: bool
 

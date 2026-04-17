@@ -7,7 +7,6 @@ import 'package:student_fin_os/models/account.dart';
 import 'package:student_fin_os/models/finance_enums.dart';
 import 'package:student_fin_os/models/finance_transaction.dart';
 import 'package:student_fin_os/providers/dashboard_providers.dart';
-import 'package:student_fin_os/providers/simulation_providers.dart';
 
 class AccountAggregatorScreen extends ConsumerStatefulWidget {
   const AccountAggregatorScreen({super.key});
@@ -18,31 +17,10 @@ class AccountAggregatorScreen extends ConsumerStatefulWidget {
 
 class _AccountAggregatorScreenState extends ConsumerState<AccountAggregatorScreen> {
   @override
-  void initState() {
-    super.initState();
-    ref.listenManual<AsyncValue<void>>(
-      simulationControllerProvider,
-      (AsyncValue<void>? previous, AsyncValue<void> next) {
-        next.whenOrNull(
-          error: (Object error, StackTrace stackTrace) {
-            if (!mounted) {
-              return;
-            }
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Action failed: $error')),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  @override
   Widget build(BuildContext context) {
     final List<Account> accounts = ref.watch(accountsProvider).value ?? const <Account>[];
     final List<FinanceTransaction> txs =
         ref.watch(transactionsProvider).value ?? const <FinanceTransaction>[];
-    final bool isBusy = ref.watch(simulationControllerProvider).isLoading;
     final double totalBalance =
         accounts.fold<double>(0, (double sum, Account item) => sum + item.balance);
     final int upiAccounts = accounts.where((Account a) => a.type == AccountType.upi).length;
@@ -99,9 +77,9 @@ class _AccountAggregatorScreenState extends ConsumerState<AccountAggregatorScree
               ),
             ),
             const SizedBox(height: 12),
-            SectionHeader(
-              title: 'Platform Controls',
-              subtitle: isBusy ? 'Running action...' : 'Seed accounts and generate consistent mock activity',
+            const SectionHeader(
+              title: 'Account Health',
+              subtitle: 'Live balances and latest activity',
             ),
             const SizedBox(height: 6),
             Text(
@@ -111,62 +89,12 @@ class _AccountAggregatorScreenState extends ConsumerState<AccountAggregatorScree
                     fontWeight: FontWeight.w700,
                   ),
             ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: <Widget>[
-                FilledButton.icon(
-                  onPressed: isBusy
-                      ? null
-                      : () async {
-                          await ref
-                              .read(simulationControllerProvider.notifier)
-                              .seedVirtualAccounts();
-                          if (!context.mounted) {
-                            return;
-                          }
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Virtual accounts synced.')),
-                          );
-                        },
-                  icon: isBusy
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.account_balance),
-                  label: const Text('Seed accounts'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: isBusy
-                      ? null
-                      : accounts.isEmpty
-                          ? null
-                      : () async {
-                          await ref
-                              .read(simulationControllerProvider.notifier)
-                              .generateMockTransactions(count: 10);
-                          if (!context.mounted) {
-                            return;
-                          }
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('10 mock transactions generated.')),
-                          );
-                        },
-                  icon: const Icon(Icons.bolt),
-                  label: const Text('Generate mock txns'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
             Expanded(
               child: accounts.isEmpty
                   ? const EmptyState(
-                      title: 'No virtual accounts found',
-                      message:
-                          'Tap "Seed accounts" to create simulated SBI/HDFC bank, UPI wallet, and cash accounts.',
+                      title: 'No accounts found',
+                      message: 'Add an account from the activity flow to start tracking.',
                       icon: Icons.account_balance_wallet,
                     )
                   : ListView.builder(
@@ -229,56 +157,11 @@ class _AccountAggregatorScreenState extends ConsumerState<AccountAggregatorScree
                                   ],
                                 ),
                                 const SizedBox(height: 10),
-                                Wrap(
-                                  spacing: 8,
-                                  runSpacing: 8,
-                                  children: <Widget>[
-                                    ActionChip(
-                                      avatar: const Icon(Icons.add_card, size: 18),
-                                      label: const Text('Credit'),
-                                      onPressed: isBusy
-                                          ? null
-                                          : () {
-                                              ref
-                                                  .read(simulationControllerProvider.notifier)
-                                                  .simulateCredit(
-                                                        accountId: account.id,
-                                                        amount: 1800,
-                                                      );
-                                            },
-                                    ),
-                                    ActionChip(
-                                      avatar:
-                                          const Icon(Icons.remove_circle_outline, size: 18),
-                                      label: const Text('Debit'),
-                                      onPressed: isBusy
-                                          ? null
-                                          : () {
-                                              ref
-                                                  .read(simulationControllerProvider.notifier)
-                                                  .simulateDebit(
-                                                        accountId: account.id,
-                                                        amount: 420,
-                                                      );
-                                            },
-                                    ),
-                                    ActionChip(
-                                      avatar: const Icon(Icons.qr_code_2, size: 18),
-                                      label: const Text('UPI pay'),
-                                      onPressed: isBusy
-                                          ? null
-                                          : account.type == AccountType.upi
-                                          ? () {
-                                              ref
-                                                  .read(simulationControllerProvider.notifier)
-                                                  .simulateUpiPayment(
-                                                    accountId: account.id,
-                                                    amount: 240,
-                                                  );
-                                            }
-                                          : null,
-                                    ),
-                                  ],
+                                Text(
+                                  latest == null
+                                      ? 'No recent activity.'
+                                      : 'Latest: ${latest.category} • ${CurrencyFormatter.inr(latest.amount)}',
+                                  style: Theme.of(context).textTheme.bodySmall,
                                 ),
                               ],
                             ),

@@ -9,7 +9,6 @@ import 'package:student_fin_os/core/widgets/section_header.dart';
 import 'package:student_fin_os/models/account.dart';
 import 'package:student_fin_os/models/finance_transaction.dart';
 import 'package:student_fin_os/providers/dashboard_providers.dart';
-import 'package:student_fin_os/providers/simulation_providers.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -20,7 +19,6 @@ class DashboardScreen extends ConsumerWidget {
     final accountsAsync = ref.watch(accountsProvider);
     final List<FinanceTransaction> txList = snapshot.unifiedTransactions;
     final UnifiedPlatformSummary summary = ref.watch(unifiedPlatformSummaryProvider);
-    final bool simulationBusy = ref.watch(simulationControllerProvider).isLoading;
     final List<Account> accountList = accountsAsync.value ?? const <Account>[];
     final Map<String, Account> accountById = <String, Account>{
       for (final Account account in accountList) account.id: account,
@@ -73,29 +71,12 @@ class DashboardScreen extends ConsumerWidget {
                             children: <Widget>[
                               Expanded(
                                 child: Text(
-                                  'Virtual Bank → Account Aggregator → Unified Feed',
+                                  'Connected Accounts → Unified Feed',
                                   style: Theme.of(context)
                                       .textTheme
                                       .titleSmall
                                       ?.copyWith(fontWeight: FontWeight.w700),
                                 ),
-                              ),
-                              FilledButton.icon(
-                                onPressed: simulationBusy
-                                    ? null
-                                    : () async {
-                                        await ref
-                                            .read(simulationControllerProvider.notifier)
-                                            .bootstrapUnifiedPlatform();
-                                      },
-                                icon: simulationBusy
-                                    ? const SizedBox(
-                                        width: 14,
-                                        height: 14,
-                                        child: CircularProgressIndicator(strokeWidth: 2),
-                                      )
-                                    : const Icon(Icons.sync),
-                                label: const Text('Sync'),
                               ),
                             ],
                           ),
@@ -297,7 +278,7 @@ class DashboardScreen extends ConsumerWidget {
                       if (accounts.isEmpty) {
                         return const EmptyState(
                           title: 'No accounts yet',
-                          message: 'Seed or create accounts to view unified balances.',
+                          message: 'Create accounts to view unified balances.',
                           icon: Icons.account_balance_wallet,
                         );
                       }

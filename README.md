@@ -21,15 +21,15 @@ Production-ready blueprint and scaffold for a personal finance app focused on In
 
 - Authentication (Google + callable OTP flow)
 - Unified account balance tracking
-- Transaction tracking (manual + QR simulation)
+- Transaction tracking (manual + QR)
 - Dashboard analytics and burn rate
 - Split groups and split expenses
 - Goal-based savings and safe-to-spend
 - Rule-based AI insights
 - Cash-flow projection and low-balance prediction
 - Notification preference system + backend reminder automation
-- Gemini chat assistant with fast/deep model routing, context-aware replies, and prompt suggestions
-- Gemini Live voice assistant with persistent websocket session, raw PCM microphone streaming, direct model audio output, and barge-in
+- AI chat assistant with fast/deep model routing, context-aware replies, and prompt suggestions
+- Live voice assistant with persistent websocket session, raw PCM microphone streaming, direct model audio output, and barge-in
 
 ## Start locally
 
@@ -47,14 +47,14 @@ Production-ready blueprint and scaffold for a personal finance app focused on In
 	- `firebase deploy --only functions`
 5. Run app:
 	- Create a root `.env` file (copy from `.env.example`) and set:
-	  - `GEMINI_API_KEY=your_key`
-	  - `GEMINI_CHAT_FAST_MODEL=models/gemini-2.5-flash`
-	  - `GEMINI_CHAT_DEEP_MODEL=models/gemini-2.5-pro`
-	  - `GEMINI_VOICE_MODEL=models/gemini-3.1-flash-live-preview`
+	  - `AI_API_KEY=your_key`
+	  - `AI_CHAT_FAST_MODEL=models/fast-model`
+	  - `AI_CHAT_DEEP_MODEL=models/deep-model`
+	  - `AI_VOICE_MODEL=models/live-voice-model`
 	  - Optional Live audio tuning:
-	    - `GEMINI_LIVE_VOICE_NAME=Puck`
-	    - `GEMINI_LIVE_INPUT_SAMPLE_RATE=16000`
-	    - `GEMINI_LIVE_OUTPUT_SAMPLE_RATE=24000`
+	    - `AI_LIVE_VOICE_NAME=Puck`
+	    - `AI_LIVE_INPUT_SAMPLE_RATE=16000`
+	    - `AI_LIVE_OUTPUT_SAMPLE_RATE=24000`
 	- Then run:
 	  - `flutter run -d chrome`
 	- or:
@@ -78,5 +78,5 @@ Production-ready blueprint and scaffold for a personal finance app focused on In
 
 ## Notes
 
-- Banking integrations are intentionally simulated; no real banking APIs are used.
+- No real banking APIs are used.
 - `assets/mock/mock_data.json` provides sample seed data for quick demos.

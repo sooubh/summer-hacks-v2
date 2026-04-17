@@ -210,7 +210,7 @@ class _ModeHeader extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Text(
-            'Gemini routing',
+            'AI routing',
             style: Theme.of(
               context,
             ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
@@ -348,7 +348,7 @@ class _TypingBubble extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             Text(
-              'Gemini is typing...',
+              'AI is typing...',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ],

@@ -13,7 +13,6 @@ import 'package:student_fin_os/services/notification_service.dart';
 import 'package:student_fin_os/services/savings_service.dart';
 import 'package:student_fin_os/services/split_service.dart';
 import 'package:student_fin_os/services/transaction_service.dart';
-import 'package:student_fin_os/services/simulation_service.dart';
 import 'package:uuid/uuid.dart';
 
 final firebaseAuthProvider = Provider<FirebaseAuth>((ref) {
@@ -55,14 +54,6 @@ final transactionServiceProvider = Provider<TransactionService>((ref) {
 
 final aggregatorServiceProvider = Provider<AggregatorService>((ref) {
   return AggregatorService(ref.watch(firestoreProvider));
-});
-
-final simulationServiceProvider = Provider<SimulationService>((ref) {
-  return SimulationService(
-    accountService: ref.watch(accountServiceProvider),
-    transactionService: ref.watch(transactionServiceProvider),
-    uuid: ref.watch(uuidProvider),
-  );
 });
 
 final splitServiceProvider = Provider<SplitService>((ref) {

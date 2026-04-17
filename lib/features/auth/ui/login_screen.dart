@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:student_fin_os/l10n/app_localizations.dart';
 import 'package:student_fin_os/providers/auth_providers.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -24,6 +25,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context)!;
     final AsyncValue<void> authState = ref.watch(authControllerProvider);
 
     ref.listen<AsyncValue<void>>(authControllerProvider, (AsyncValue<void>? previous,
@@ -32,7 +34,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         error: (Object error, StackTrace stackTrace) {
           final String message;
           if (error is FirebaseAuthException) {
-            message = error.message ?? 'Authentication failed.';
+            message = error.message ?? l10n.authFailed;
           } else {
             message = error.toString();
           }
@@ -63,7 +65,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     Text(
-                      'Student Financial OS',
+                      l10n.appName,
                       style: Theme.of(context)
                           .textTheme
                           .headlineSmall
@@ -71,16 +73,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Track everything. Split faster. Save smarter.',
+                      l10n.loginTagline,
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                     const SizedBox(height: 20),
                     TextField(
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
-                      decoration: const InputDecoration(
-                        labelText: 'College email',
-                        hintText: 'you@college.edu',
+                      decoration: InputDecoration(
+                        labelText: l10n.collegeEmailLabel,
+                        hintText: l10n.collegeEmailHint,
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -89,9 +91,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         controller: _otpController,
                         keyboardType: TextInputType.number,
                         maxLength: 6,
-                        decoration: const InputDecoration(
-                          labelText: 'OTP',
-                          hintText: 'Enter 6-digit OTP',
+                        decoration: InputDecoration(
+                          labelText: l10n.otpLabel,
+                          hintText: l10n.otpHint,
                         ),
                       ),
                     const SizedBox(height: 8),
@@ -121,7 +123,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                     );
                               }
                             },
-                      child: Text(_otpRequested ? 'Verify OTP' : 'Send OTP'),
+                      child: Text(_otpRequested ? l10n.verifyOtp : l10n.sendOtp),
                     ),
                     const SizedBox(height: 12),
                     OutlinedButton.icon(
@@ -133,7 +135,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                   .signInWithGoogle();
                             },
                       icon: const Icon(Icons.login),
-                      label: const Text('Continue with Google'),
+                        label: Text(l10n.continueWithGoogle),
                     ),
                   ],
                 ),

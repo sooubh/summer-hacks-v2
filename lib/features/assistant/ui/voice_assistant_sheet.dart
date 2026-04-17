@@ -90,7 +90,7 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
     try {
       if (AiRuntimeConfig.apiKey.trim().isEmpty) {
         _appendDebugEvent(
-          'GEMINI_API_KEY is missing from .env and dart-define.',
+          'AI_API_KEY is missing from .env and dart-define.',
           code: 'missing_api_key',
         );
       }

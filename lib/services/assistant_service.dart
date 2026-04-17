@@ -245,7 +245,7 @@ class AssistantService {
       }
     }
 
-    throw lastError ?? StateError('Gemini request failed.');
+    throw lastError ?? StateError('AI request failed.');
   }
 
   Future<String> _generate({
@@ -295,18 +295,18 @@ class AssistantService {
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw StateError(
-        'Gemini API error (${response.statusCode}): ${response.body.substring(0, response.body.length.clamp(0, 320))}',
+        'AI API error (${response.statusCode}): ${response.body.substring(0, response.body.length.clamp(0, 320))}',
       );
     }
 
     final dynamic decoded = jsonDecode(response.body);
     if (decoded is! Map<String, dynamic>) {
-      throw StateError('Gemini API returned an invalid response payload.');
+      throw StateError('AI API returned an invalid response payload.');
     }
 
     final String text = _extractText(decoded);
     if (text.isEmpty) {
-      throw StateError('Gemini response did not contain text output.');
+      throw StateError('AI response did not contain text output.');
     }
     return text;
   }
@@ -427,7 +427,7 @@ class AssistantService {
     final String value = AiRuntimeConfig.apiKey.trim();
     if (value.isEmpty) {
       throw StateError(
-        'GEMINI_API_KEY is missing. Set it in root .env or pass --dart-define=GEMINI_API_KEY=<your_key>.',
+        'AI_API_KEY is missing. Set it in root .env or pass --dart-define=AI_API_KEY=<your_key>.',
       );
     }
     return value;

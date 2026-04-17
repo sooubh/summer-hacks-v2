@@ -3,7 +3,6 @@ import 'package:student_fin_os/models/finance_enums.dart';
 import 'package:student_fin_os/models/finance_transaction.dart';
 import 'package:student_fin_os/providers/auth_providers.dart';
 import 'package:student_fin_os/providers/firebase_providers.dart';
-import 'package:student_fin_os/providers/simulation_providers.dart';
 
 final transactionCategoriesProvider = Provider<List<String>>((ref) {
   return const <String>[
@@ -47,7 +46,7 @@ class TransactionController extends AsyncNotifier<void> {
       final DateTime now = DateTime.now().toUtc();
       final String normalizedCategory =
           category == 'auto' || category.trim().isEmpty
-              ? ref.read(autoCategoryProvider)(title, type, tags)
+            ? _suggestCategory(title: title, type: type, tags: tags)
               : category;
       final FinanceTransaction tx = FinanceTransaction(
         id: ref.read(uuidProvider).v4(),
@@ -93,3 +92,40 @@ class TransactionController extends AsyncNotifier<void> {
 
 final transactionControllerProvider =
     AsyncNotifierProvider<TransactionController, void>(TransactionController.new);
+
+String _suggestCategory({
+  required String title,
+  required TransactionType type,
+  required List<String> tags,
+}) {
+  if (type == TransactionType.income) {
+    return 'stipend';
+  }
+
+  final String text = '${title.toLowerCase()} ${tags.join(' ').toLowerCase()}';
+  if (text.contains('rent') || text.contains('hostel')) {
+    return 'rent';
+  }
+  if (text.contains('food') || text.contains('cafe') || text.contains('restaurant')) {
+    return 'food';
+  }
+  if (text.contains('bus') || text.contains('metro') || text.contains('uber')) {
+    return 'travel';
+  }
+  if (text.contains('book') || text.contains('course') || text.contains('tuition')) {
+    return 'education';
+  }
+  if (text.contains('movie') || text.contains('netflix') || text.contains('game')) {
+    return 'entertainment';
+  }
+  if (text.contains('medicine') || text.contains('clinic') || text.contains('hospital')) {
+    return 'health';
+  }
+  if (text.contains('electricity') || text.contains('wifi') || text.contains('bill')) {
+    return 'utilities';
+  }
+  if (text.contains('shop') || text.contains('mall') || text.contains('amazon')) {
+    return 'shopping';
+  }
+  return 'misc';
+}

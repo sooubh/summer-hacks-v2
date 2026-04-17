@@ -57,7 +57,7 @@ class TransactionsScreen extends ConsumerWidget {
               const SizedBox(height: 12),
               const SectionHeader(
                 title: 'Quick Actions',
-                subtitle: 'Create and simulate focused transactions',
+                subtitle: 'Create focused transactions quickly',
               ),
               const SizedBox(height: 8),
               Row(
@@ -77,7 +77,7 @@ class TransactionsScreen extends ConsumerWidget {
                             _simulateQrEntry(context, ref, accounts.first.id);
                           },
                     icon: const Icon(Icons.qr_code_scanner),
-                    label: const Text('Simulate QR scan'),
+                    label: const Text('Quick QR entry'),
                   ),
                 ],
               ),
@@ -147,8 +147,8 @@ class TransactionsScreen extends ConsumerWidget {
           type: TransactionType.expense,
           category: 'food',
           tags: const <String>['qr', 'upi'],
-          note: 'Simulated QR transaction',
-          source: 'simulation',
+          note: 'QR transaction',
+          source: 'qr',
           channel: 'upi',
         );
   }
