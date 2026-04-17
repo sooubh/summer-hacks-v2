@@ -23,6 +23,7 @@ class AppShellScreen extends ConsumerStatefulWidget {
 
 class _AppShellScreenState extends ConsumerState<AppShellScreen> {
   late int _index;
+  static const List<int> _mobileTabIndexes = <int>[0, 2, 4, 5];
 
   late final List<Widget> _pages = const <Widget>[
     DashboardScreen(),
@@ -48,6 +49,14 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
         NavigationDestination(icon: Icon(Icons.timeline), label: 'CashFlow'),
       ];
 
+  late final List<NavigationDestination> _mobileDestinations =
+      const <NavigationDestination>[
+        NavigationDestination(icon: Icon(Icons.space_dashboard), label: 'Home'),
+        NavigationDestination(icon: Icon(Icons.swap_horiz), label: 'Txns'),
+        NavigationDestination(icon: Icon(Icons.savings), label: 'Savings'),
+        NavigationDestination(icon: Icon(Icons.lightbulb), label: 'Insights'),
+      ];
+
   @override
   void initState() {
     super.initState();
@@ -62,6 +71,11 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
       _index = value;
     });
     context.go(AppRoutes.appTabs[value]);
+  }
+
+  int _mobileSelectedIndex() {
+    final int selected = _mobileTabIndexes.indexOf(_index);
+    return selected < 0 ? 0 : selected;
   }
 
   Future<void> _openVoiceAssistant() async {
@@ -136,10 +150,10 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
       bottomNavigationBar: desktopLayout
           ? null
           : NavigationBar(
-              selectedIndex: _index,
-              destinations: _destinations,
-              onDestinationSelected: (int value) {
-                _onDestinationSelected(value);
+              selectedIndex: _mobileSelectedIndex(),
+              destinations: _mobileDestinations,
+              onDestinationSelected: (int mobileIndex) {
+                _onDestinationSelected(_mobileTabIndexes[mobileIndex]);
               },
             ),
       floatingActionButton: FloatingActionButton.extended(

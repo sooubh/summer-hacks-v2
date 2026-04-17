@@ -271,12 +271,10 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
         return;
       }
       controller.setLiveSessionReady(false);
-      if (_reconnectAttempt == 0) {
-        controller.setError(
-          'Live voice is unavailable right now. Retrying...',
-          code: 'connect_retry',
-        );
-      }
+      controller.setError(
+        'Live session setup failed: $error',
+        code: 'connect_retry',
+      );
       _scheduleReconnect(reason: error.toString());
     } finally {
       _liveSessionConnecting = false;
@@ -597,7 +595,9 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
     }
 
     if (_liveSession == null) {
-      await _connectLiveSession();
+      if (!_liveSessionConnecting && _reconnectTimer == null) {
+        await _connectLiveSession();
+      }
     }
 
     final VoiceLiveSession? session = _liveSession;
@@ -607,9 +607,11 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
         'Live session not ready during microphone start.',
         code: 'not_ready',
       );
-      ref
-          .read(voiceAssistantControllerProvider.notifier)
-          .setError('Live session is not ready yet. Reconnecting...', code: 'not_ready');
+      if (_reconnectAttempt == 0) {
+        ref
+            .read(voiceAssistantControllerProvider.notifier)
+            .setError('Live session is not ready yet. Reconnecting...', code: 'not_ready');
+      }
       return;
     }
 
@@ -755,10 +757,6 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
       ref
           .read(voiceAssistantControllerProvider.notifier)
           .clearStreamingReply();
-    }
-
-    if (!state.liveSessionReady && !_liveSessionConnecting) {
-      await _connectLiveSession();
     }
 
     await _startMicStream();

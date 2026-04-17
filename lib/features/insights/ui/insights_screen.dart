@@ -26,7 +26,7 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
   _InsightFilter _filter = _InsightFilter.all;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final List<AiInsight> insights = ref.watch(insightsFeedProvider).value ?? const <AiInsight>[];
     final DateTime? lowBalanceDate = ref.watch(predictedLowBalanceDateProvider);
 

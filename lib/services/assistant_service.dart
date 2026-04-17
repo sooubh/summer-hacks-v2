@@ -503,8 +503,7 @@ class VoiceLiveSession {
     }
 
     final Map<String, dynamic> payload = <String, dynamic>{
-      'client_content': <String, dynamic>{
-        'turn_complete': true,
+      'clientContent': <String, dynamic>{
         'turns': <Map<String, dynamic>>[
           <String, dynamic>{
             'role': 'user',
@@ -513,6 +512,7 @@ class VoiceLiveSession {
             ],
           },
         ],
+        'turnComplete': true,
       },
     };
 
@@ -534,13 +534,11 @@ class VoiceLiveSession {
     }
 
     final Map<String, dynamic> payload = <String, dynamic>{
-      'realtime_input': <String, dynamic>{
-        'media_chunks': <Map<String, String>>[
-          <String, String>{
-            'mime_type': 'audio/pcm;rate=$sampleRate',
-            'data': base64Encode(pcm16Chunk),
-          },
-        ],
+      'realtimeInput': <String, dynamic>{
+        'audio': <String, String>{
+          'mimeType': 'audio/pcm;rate=$sampleRate',
+          'data': base64Encode(pcm16Chunk),
+        },
       },
     };
 
@@ -569,11 +567,14 @@ class VoiceLiveSession {
 
     final Map<String, dynamic> setup = <String, dynamic>{
       'model': model,
-      'response_modalities': responseModalities,
+    };
+
+    final Map<String, dynamic> generationConfig = <String, dynamic>{
+      'responseModalities': responseModalities,
     };
 
     if (normalizedInstruction.isNotEmpty) {
-      setup['system_instruction'] = <String, dynamic>{
+      setup['systemInstruction'] = <String, dynamic>{
         'parts': <Map<String, String>>[
           <String, String>{'text': normalizedInstruction},
         ],
@@ -581,14 +582,16 @@ class VoiceLiveSession {
     }
 
     if (normalizedVoiceName.isNotEmpty) {
-      setup['speech_config'] = <String, dynamic>{
-        'voice_config': <String, dynamic>{
-          'prebuilt_voice_config': <String, String>{
-            'voice_name': normalizedVoiceName,
+      generationConfig['speechConfig'] = <String, dynamic>{
+        'voiceConfig': <String, dynamic>{
+          'prebuiltVoiceConfig': <String, String>{
+            'voiceName': normalizedVoiceName,
           },
         },
       };
     }
+
+    setup['generationConfig'] = generationConfig;
 
     final Map<String, dynamic> payload = <String, dynamic>{
       'setup': setup,
@@ -726,20 +729,35 @@ class VoiceLiveSession {
     if (_closed) {
       return;
     }
+
+    final int? closeCode = _channel.closeCode;
+    final String closeReason = (_channel.closeReason ?? '').trim();
+    final List<String> closeMeta = <String>[
+      if (closeCode != null) 'code=$closeCode',
+      if (closeReason.isNotEmpty) 'reason=$closeReason',
+    ];
+    final String closeDetails = closeMeta.isEmpty
+        ? 'WebSocket closed without details.'
+        : 'WebSocket closed (${closeMeta.join(', ')}).';
+
     if (!_setupCompleter.isCompleted) {
       _setupCompleter.completeError(
-        StateError('Live connection closed before setup completed.'),
+        StateError('Live connection closed before setup completed. $closeDetails'),
       );
     }
+
+    _emit(
+      VoiceLiveEvent.error(
+        'Live connection closed. $closeDetails',
+        code: closeCode?.toString() ?? 'connection_closed',
+      ),
+    );
+
     _turnTextBuffer.clear();
     _emit(VoiceLiveEvent.disconnected());
   }
 
   Future<void> _waitForSetup() async {
-    if (_setupCompleter.isCompleted) {
-      return;
-    }
-
     await _setupCompleter.future.timeout(
       const Duration(seconds: 12),
       onTimeout: () {
