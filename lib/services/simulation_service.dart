@@ -40,62 +40,64 @@ class SimulationService {
     required String userId,
     required List<Account> existingAccounts,
   }) async {
-    if (existingAccounts.isNotEmpty) {
-      return existingAccounts;
-    }
-
     final DateTime now = DateTime.now().toUtc();
-    final List<Account> simulated = <Account>[
-      Account(
-        id: _uuid.v4(),
-        userId: userId,
+    final List<_AccountSeedTemplate> templates = <_AccountSeedTemplate>[
+      const _AccountSeedTemplate(
         name: 'SBI Savings',
         type: AccountType.bank,
         provider: 'SBI',
         balance: 9500,
         icon: 'account_balance',
-        createdAt: now,
-        updatedAt: now,
       ),
-      Account(
-        id: _uuid.v4(),
-        userId: userId,
+      const _AccountSeedTemplate(
         name: 'HDFC Student',
         type: AccountType.bank,
         provider: 'HDFC',
         balance: 4200,
         icon: 'savings',
-        createdAt: now,
-        updatedAt: now,
       ),
-      Account(
-        id: _uuid.v4(),
-        userId: userId,
+      const _AccountSeedTemplate(
         name: 'GPay Wallet',
         type: AccountType.upi,
         provider: 'GPay',
         balance: 1600,
         icon: 'smartphone',
-        createdAt: now,
-        updatedAt: now,
       ),
-      Account(
-        id: _uuid.v4(),
-        userId: userId,
+      const _AccountSeedTemplate(
         name: 'Cash Wallet',
         type: AccountType.cash,
         provider: 'Cash',
         balance: 700,
         icon: 'payments',
-        createdAt: now,
-        updatedAt: now,
       ),
     ];
 
-    for (final Account account in simulated) {
+    final Set<String> existingKeys = existingAccounts
+        .map((Account account) => _key(account.type, account.provider))
+        .toSet();
+
+    final List<Account> insertedAccounts = <Account>[];
+    for (final _AccountSeedTemplate template in templates) {
+      if (existingKeys.contains(_key(template.type, template.provider))) {
+        continue;
+      }
+      final Account account = Account(
+        id: _uuid.v4(),
+        userId: userId,
+        name: template.name,
+        type: template.type,
+        provider: template.provider,
+        balance: template.balance,
+        icon: template.icon,
+        createdAt: now,
+        updatedAt: now,
+      );
+
       await _accountService.upsertAccount(account);
+      insertedAccounts.add(account);
     }
-    return simulated;
+
+    return <Account>[...existingAccounts, ...insertedAccounts];
   }
 
   Future<void> simulateCredit({
@@ -155,8 +157,12 @@ class SimulationService {
     required List<Account> accounts,
     int count = 6,
   }) async {
-    if (accounts.isEmpty) {
-      return;
+    final List<Account> availableAccounts = await seedVirtualAccountsIfEmpty(
+      userId: userId,
+      existingAccounts: accounts,
+    );
+    if (availableAccounts.isEmpty) {
+      throw StateError('No accounts available for mock transaction generation.');
     }
 
     final List<String> incomes = <String>[
@@ -178,7 +184,7 @@ class SimulationService {
 
     for (int i = 0; i < count; i++) {
       final bool income = _random.nextDouble() > 0.65;
-      final Account account = accounts[_random.nextInt(accounts.length)];
+      final Account account = availableAccounts[_random.nextInt(availableAccounts.length)];
       final String title = income
           ? incomes[_random.nextInt(incomes.length)]
           : expenses[_random.nextInt(expenses.length)];
@@ -283,4 +289,24 @@ class SimulationService {
     final String normalized = text.toLowerCase();
     return keywords.any(normalized.contains);
   }
+
+  String _key(AccountType type, String? provider) {
+    return '${type.name}:${(provider ?? '').toLowerCase()}';
+  }
+}
+
+class _AccountSeedTemplate {
+  const _AccountSeedTemplate({
+    required this.name,
+    required this.type,
+    required this.provider,
+    required this.balance,
+    required this.icon,
+  });
+
+  final String name;
+  final AccountType type;
+  final String provider;
+  final double balance;
+  final String icon;
 }

@@ -9,14 +9,40 @@ import 'package:student_fin_os/models/finance_transaction.dart';
 import 'package:student_fin_os/providers/dashboard_providers.dart';
 import 'package:student_fin_os/providers/simulation_providers.dart';
 
-class AccountAggregatorScreen extends ConsumerWidget {
+class AccountAggregatorScreen extends ConsumerStatefulWidget {
   const AccountAggregatorScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AccountAggregatorScreen> createState() => _AccountAggregatorScreenState();
+}
+
+class _AccountAggregatorScreenState extends ConsumerState<AccountAggregatorScreen> {
+  @override
+  void initState() {
+    super.initState();
+    ref.listenManual<AsyncValue<void>>(
+      simulationControllerProvider,
+      (AsyncValue<void>? previous, AsyncValue<void> next) {
+        next.whenOrNull(
+          error: (Object error, StackTrace stackTrace) {
+            if (!mounted) {
+              return;
+            }
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Action failed: $error')),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final List<Account> accounts = ref.watch(accountsProvider).value ?? const <Account>[];
     final List<FinanceTransaction> txs =
         ref.watch(transactionsProvider).value ?? const <FinanceTransaction>[];
+    final bool isBusy = ref.watch(simulationControllerProvider).isLoading;
 
     return SafeArea(
       child: Padding(
@@ -34,19 +60,43 @@ class AccountAggregatorScreen extends ConsumerWidget {
               runSpacing: 8,
               children: <Widget>[
                 FilledButton.icon(
-                  onPressed: () {
-                    ref.read(simulationControllerProvider.notifier).seedVirtualAccounts();
-                  },
-                  icon: const Icon(Icons.account_balance),
-                  label: const Text('Seed accounts'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: accounts.isEmpty
+                  onPressed: isBusy
                       ? null
-                      : () {
-                          ref
+                      : () async {
+                          await ref
+                              .read(simulationControllerProvider.notifier)
+                              .seedVirtualAccounts();
+                          if (!context.mounted) {
+                            return;
+                          }
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Virtual accounts synced.')),
+                          );
+                        },
+                  icon: isBusy
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.account_balance),
+                      label: const Text('Seed accounts'),
+                    ),
+                    OutlinedButton.icon(
+                  onPressed: isBusy
+                      ? null
+                      : accounts.isEmpty
+                          ? null
+                      : () async {
+                          await ref
                               .read(simulationControllerProvider.notifier)
                               .generateMockTransactions(count: 10);
+                          if (!context.mounted) {
+                            return;
+                          }
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('10 mock transactions generated.')),
+                          );
                         },
                   icon: const Icon(Icons.bolt),
                   label: const Text('Generate mock txns'),
@@ -115,25 +165,37 @@ class AccountAggregatorScreen extends ConsumerWidget {
                                   runSpacing: 8,
                                   children: <Widget>[
                                     FilledButton.tonalIcon(
-                                      onPressed: () {
-                                        ref
-                                            .read(simulationControllerProvider.notifier)
-                                            .simulateCredit(accountId: account.id, amount: 1800);
-                                      },
+                                      onPressed: isBusy
+                                          ? null
+                                          : () {
+                                              ref
+                                                  .read(simulationControllerProvider.notifier)
+                                                  .simulateCredit(
+                                                        accountId: account.id,
+                                                        amount: 1800,
+                                                      );
+                                            },
                                       icon: const Icon(Icons.add_card),
                                       label: const Text('Credit'),
                                     ),
                                     FilledButton.tonalIcon(
-                                      onPressed: () {
-                                        ref
-                                            .read(simulationControllerProvider.notifier)
-                                            .simulateDebit(accountId: account.id, amount: 420);
-                                      },
+                                      onPressed: isBusy
+                                          ? null
+                                          : () {
+                                              ref
+                                                  .read(simulationControllerProvider.notifier)
+                                                  .simulateDebit(
+                                                        accountId: account.id,
+                                                        amount: 420,
+                                                      );
+                                            },
                                       icon: const Icon(Icons.remove_circle_outline),
                                       label: const Text('Debit'),
                                     ),
                                     FilledButton.tonalIcon(
-                                      onPressed: account.type == AccountType.upi
+                                      onPressed: isBusy
+                                          ? null
+                                          : account.type == AccountType.upi
                                           ? () {
                                               ref
                                                   .read(simulationControllerProvider.notifier)

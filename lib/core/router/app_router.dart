@@ -7,35 +7,69 @@ import 'package:student_fin_os/features/auth/ui/login_screen.dart';
 import 'package:student_fin_os/features/shell/ui/app_shell_screen.dart';
 import 'package:student_fin_os/providers/firebase_providers.dart';
 
+class AppRoutes {
+  static const String login = '/login';
+  static const String dashboard = '/app/dashboard';
+  static const String accounts = '/app/accounts';
+  static const String transactions = '/app/transactions';
+  static const String splits = '/app/splits';
+  static const String savings = '/app/savings';
+  static const String insights = '/app/insights';
+  static const String cashFlow = '/app/cashflow';
+
+  static const List<String> appTabs = <String>[
+    dashboard,
+    accounts,
+    transactions,
+    splits,
+    savings,
+    insights,
+    cashFlow,
+  ];
+
+  static int indexFromLocation(String location) {
+    final int idx = appTabs.indexOf(location);
+    return idx < 0 ? 0 : idx;
+  }
+}
+
 final appRouterProvider = Provider<GoRouter>((ref) {
   final GoRouterRefreshStream refreshNotifier =
       GoRouterRefreshStream(ref.watch(authServiceProvider).authStateChanges());
   ref.onDispose(refreshNotifier.dispose);
 
   return GoRouter(
-    initialLocation: '/app',
+    initialLocation: AppRoutes.dashboard,
     refreshListenable: refreshNotifier,
     routes: <GoRoute>[
       GoRoute(
-        path: '/login',
+        path: AppRoutes.login,
         name: 'login',
         builder: (BuildContext context, GoRouterState state) => const LoginScreen(),
       ),
       GoRoute(
-        path: '/app',
-        name: 'app',
-        builder: (BuildContext context, GoRouterState state) => const AppShellScreen(),
+        path: '/app/:tab',
+        name: 'app-tab',
+        builder: (BuildContext context, GoRouterState state) {
+          final String location = '/app/${state.pathParameters['tab'] ?? 'dashboard'}';
+          return AppShellScreen(initialIndex: AppRoutes.indexFromLocation(location));
+        },
       ),
     ],
     redirect: (BuildContext context, GoRouterState state) {
       final bool loggedIn = ref.read(firebaseAuthProvider).currentUser != null;
-      final bool isLoggingIn = state.matchedLocation == '/login';
+      final String location = state.matchedLocation;
+      final bool isLoggingIn = location == AppRoutes.login;
+      final bool inAppArea = location.startsWith('/app/');
 
       if (!loggedIn && !isLoggingIn) {
-        return '/login';
+        return AppRoutes.login;
       }
       if (loggedIn && isLoggingIn) {
-        return '/app';
+        return AppRoutes.dashboard;
+      }
+      if (loggedIn && !inAppArea && !isLoggingIn) {
+        return AppRoutes.dashboard;
       }
       return null;
     },

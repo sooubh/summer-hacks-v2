@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:student_fin_os/core/router/app_router.dart';
 import 'package:student_fin_os/features/accounts/ui/account_aggregator_screen.dart';
 import 'package:student_fin_os/features/cashflow/ui/cash_flow_screen.dart';
 import 'package:student_fin_os/features/dashboard/ui/dashboard_screen.dart';
@@ -10,14 +12,16 @@ import 'package:student_fin_os/features/transactions/ui/transactions_screen.dart
 import 'package:student_fin_os/providers/auth_providers.dart';
 
 class AppShellScreen extends ConsumerStatefulWidget {
-  const AppShellScreen({super.key});
+  const AppShellScreen({required this.initialIndex, super.key});
+
+  final int initialIndex;
 
   @override
   ConsumerState<AppShellScreen> createState() => _AppShellScreenState();
 }
 
 class _AppShellScreenState extends ConsumerState<AppShellScreen> {
-  int _index = 0;
+  late int _index;
 
   late final List<Widget> _pages = const <Widget>[
     DashboardScreen(),
@@ -39,6 +43,22 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
     NavigationDestination(icon: Icon(Icons.lightbulb), label: 'Insights'),
     NavigationDestination(icon: Icon(Icons.timeline), label: 'CashFlow'),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _index = widget.initialIndex;
+  }
+
+  void _onDestinationSelected(int value) {
+    if (value < 0 || value >= AppRoutes.appTabs.length) {
+      return;
+    }
+    setState(() {
+      _index = value;
+    });
+    context.go(AppRoutes.appTabs[value]);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -66,9 +86,7 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
                     );
                   }).toList(),
                   onDestinationSelected: (int value) {
-                    setState(() {
-                      _index = value;
-                    });
+                    _onDestinationSelected(value);
                   },
                 ),
                 const VerticalDivider(width: 1),
@@ -90,9 +108,7 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
               selectedIndex: _index,
               destinations: _destinations,
               onDestinationSelected: (int value) {
-                setState(() {
-                  _index = value;
-                });
+                _onDestinationSelected(value);
               },
             ),
     );
