@@ -471,6 +471,7 @@ class VoiceLiveSession {
     );
 
     session._sendSetup();
+    await session._waitForSetup();
     return session;
   }
 
@@ -482,6 +483,7 @@ class VoiceLiveSession {
   final StreamController<VoiceLiveEvent> _eventsController =
       StreamController<VoiceLiveEvent>.broadcast();
   final StringBuffer _turnTextBuffer = StringBuffer();
+  final Completer<void> _setupCompleter = Completer<void>();
 
   late final StreamSubscription<dynamic> _streamSubscription;
   bool _closed = false;
@@ -492,6 +494,8 @@ class VoiceLiveSession {
     if (_closed) {
       throw StateError('Live voice session is already closed.');
     }
+
+    await _waitForSetup();
 
     final String prompt = text.trim();
     if (prompt.isEmpty) {
@@ -522,6 +526,8 @@ class VoiceLiveSession {
     if (_closed) {
       throw StateError('Live voice session is already closed.');
     }
+
+    await _waitForSetup();
 
     if (pcm16Chunk.isEmpty) {
       return;
@@ -598,6 +604,9 @@ class VoiceLiveSession {
 
     if (payload.containsKey('setupComplete') ||
         payload.containsKey('setup_complete')) {
+      if (!_setupCompleter.isCompleted) {
+        _setupCompleter.complete();
+      }
       _emit(VoiceLiveEvent.setupComplete());
     }
 
@@ -605,7 +614,18 @@ class VoiceLiveSession {
     if (rootError != null) {
       final String message =
           (rootError['message'] ?? rootError.toString()).toString();
-      _emit(VoiceLiveEvent.error('Live API error: $message'));
+      final String? code = _extractErrorCode(rootError);
+      final String? status = _extractErrorStatus(rootError);
+      if (!_setupCompleter.isCompleted) {
+        _setupCompleter.completeError(StateError(message));
+      }
+      _emit(
+        VoiceLiveEvent.error(
+          'Live API error: $message',
+          code: code,
+          status: status,
+        ),
+      );
       return;
     }
 
@@ -691,15 +711,41 @@ class VoiceLiveSession {
     if (_closed) {
       return;
     }
-    _emit(VoiceLiveEvent.error('Live voice connection failed: $error'));
+    if (!_setupCompleter.isCompleted) {
+      _setupCompleter.completeError(StateError(error.toString()));
+    }
+    _emit(
+      VoiceLiveEvent.error(
+        'Live voice connection failed: $error',
+        code: 'connection_error',
+      ),
+    );
   }
 
   void _handleStreamDone() {
     if (_closed) {
       return;
     }
+    if (!_setupCompleter.isCompleted) {
+      _setupCompleter.completeError(
+        StateError('Live connection closed before setup completed.'),
+      );
+    }
     _turnTextBuffer.clear();
     _emit(VoiceLiveEvent.disconnected());
+  }
+
+  Future<void> _waitForSetup() async {
+    if (_setupCompleter.isCompleted) {
+      return;
+    }
+
+    await _setupCompleter.future.timeout(
+      const Duration(seconds: 12),
+      onTimeout: () {
+        throw StateError('Live setup timeout.');
+      },
+    );
   }
 
   void _emit(VoiceLiveEvent event) {
@@ -783,5 +829,21 @@ class VoiceLiveSession {
       return null;
     }
     return int.tryParse(match.group(1) ?? '');
+  }
+
+  static String? _extractErrorCode(Map<String, dynamic> rootError) {
+    final dynamic value = rootError['code'];
+    if (value == null) {
+      return null;
+    }
+    return value.toString();
+  }
+
+  static String? _extractErrorStatus(Map<String, dynamic> rootError) {
+    final dynamic value = rootError['status'];
+    if (value == null) {
+      return null;
+    }
+    return value.toString();
   }
 }

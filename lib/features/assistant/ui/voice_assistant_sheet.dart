@@ -1,11 +1,13 @@
 import 'dart:async';
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_sound/flutter_sound.dart';
 import 'package:intl/intl.dart';
 import 'package:logger/logger.dart' show Level;
+import 'package:permission_handler/permission_handler.dart';
 import 'package:student_fin_os/core/config/ai_runtime_config.dart';
 import 'package:student_fin_os/models/assistant_models.dart';
 import 'package:student_fin_os/providers/assistant_providers.dart';
@@ -44,12 +46,26 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
   bool _pcmPlayerReady = false;
   bool _discardCurrentModelTurn = false;
   bool _isDisposing = false;
+  bool _resumeMicAfterReconnect = false;
+  bool _shouldMaintainLiveConnection = false;
+  int _reconnectAttempt = 0;
+  Timer? _reconnectTimer;
+  final DateTime _sessionStartedAt = DateTime.now();
+  final List<String> _debugEvents = <String>[];
+  String? _lastLiveEventType;
+  DateTime? _lastLiveEventAt;
+  String? _lastReconnectReason;
+  DateTime? _lastReconnectAt;
+  bool _showDebugPanel = false;
+  bool _microphonePermissionGranted = false;
+  String _microphonePermissionState = 'unknown';
   final int _liveInputSampleRate = AiRuntimeConfig.liveInputSampleRate;
   int _liveOutputSampleRate = AiRuntimeConfig.liveOutputSampleRate;
 
   @override
   void initState() {
     super.initState();
+    _appendDebugEvent('Voice assistant sheet initialized.');
     unawaited(_initializeVoiceRuntime());
   }
 
@@ -62,6 +78,8 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
   }
 
   Future<void> _shutdownVoiceRuntime() async {
+    _cancelReconnectTimer();
+    _shouldMaintainLiveConnection = false;
     await _stopMicStream(markProcessing: false, suppressUi: true);
     await _clearPlayback(immediate: true);
     await _disconnectLiveSession(updateState: false);
@@ -70,12 +88,31 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
 
   Future<void> _initializeVoiceRuntime() async {
     try {
+      if (AiRuntimeConfig.apiKey.trim().isEmpty) {
+        _appendDebugEvent(
+          'GEMINI_API_KEY is missing from .env and dart-define.',
+          code: 'missing_api_key',
+        );
+      }
+
+      final bool hasMicrophonePermission = await _ensureMicrophonePermission();
+      if (!hasMicrophonePermission) {
+        if (mounted) {
+          setState(() {
+            _voiceReady = false;
+            _initializing = false;
+          });
+        }
+        return;
+      }
+
       await _pcmRecorder.openRecorder();
       _pcmRecorderReady = true;
 
       await _pcmPlayer.openPlayer();
       _pcmPlayerReady = true;
       await _restartPcmPlayer(sampleRate: _liveOutputSampleRate);
+      _appendDebugEvent('Audio runtime initialized successfully.');
 
       if (mounted) {
         setState(() {
@@ -83,14 +120,17 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
           _initializing = false;
         });
       }
-
-      unawaited(_connectLiveSession());
     } catch (error) {
+      _appendDebugEvent(
+        'Audio runtime initialization failed: $error',
+        code: 'runtime_init',
+      );
       if (mounted) {
         ref
             .read(voiceAssistantControllerProvider.notifier)
             .setError(
               'Voice runtime initialization failed. You can still use text input.',
+              code: 'runtime_init',
             );
         setState(() {
           _voiceReady = false;
@@ -98,6 +138,38 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
         });
       }
     }
+  }
+
+  Future<bool> _ensureMicrophonePermission() async {
+    final PermissionStatus currentStatus = await Permission.microphone.status;
+    _microphonePermissionState = currentStatus.name;
+
+    if (currentStatus.isGranted) {
+      _microphonePermissionGranted = true;
+      _appendDebugEvent('Microphone permission granted.');
+      return true;
+    }
+
+    _appendDebugEvent('Requesting microphone permission.');
+    final PermissionStatus requestedStatus = await Permission.microphone.request();
+    _microphonePermissionState = requestedStatus.name;
+    _microphonePermissionGranted = requestedStatus.isGranted;
+
+    if (requestedStatus.isGranted) {
+      _appendDebugEvent('Microphone permission granted after request.');
+      return true;
+    }
+
+    final String message = requestedStatus.isPermanentlyDenied
+        ? 'Microphone permission is permanently denied. Enable it in Android app settings.'
+        : 'Microphone permission denied. Please allow microphone access and try again.';
+    _appendDebugEvent(message, code: 'mic_permission_denied');
+    if (mounted) {
+      ref
+          .read(voiceAssistantControllerProvider.notifier)
+          .setError(message, code: 'mic_permission_denied');
+    }
+    return false;
   }
 
   Future<void> _closeAudioRuntime() async {
@@ -131,11 +203,19 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
       return;
     }
 
+    _appendDebugEvent(
+      'Connecting live session (attempt ${_reconnectAttempt + 1}).',
+    );
     _liveSessionConnecting = true;
     final VoiceAssistantController controller = ref.read(
       voiceAssistantControllerProvider.notifier,
     );
-    controller.setLiveSessionReady(false);
+    final VoiceAssistantState currentState = ref.read(
+      voiceAssistantControllerProvider,
+    );
+    if (currentState.liveSessionReady) {
+      controller.setLiveSessionReady(false);
+    }
 
     try {
       final VoiceAssistantState state = ref.read(voiceAssistantControllerProvider);
@@ -152,12 +232,19 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
           unawaited(_handleLiveEvent(event));
         },
         onError: (Object error) {
+          _appendDebugEvent(
+            'Live event stream error: $error',
+            code: 'connection_error',
+          );
           if (!mounted) {
             return;
           }
           ref
               .read(voiceAssistantControllerProvider.notifier)
-              .setError('Live voice connection failed. Falling back to turn mode.');
+              .setError(
+                'Live voice connection failed. Falling back to turn mode.',
+                code: 'connection_error',
+              );
           ref
               .read(voiceAssistantControllerProvider.notifier)
               .setLiveSessionReady(false);
@@ -166,12 +253,31 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
       );
 
       controller.setLiveSessionReady(true);
-    } catch (_) {
+      _reconnectAttempt = 0;
+      _cancelReconnectTimer();
+      _appendDebugEvent('Live session connected and ready.');
+
+      if (_resumeMicAfterReconnect) {
+        _resumeMicAfterReconnect = false;
+        _appendDebugEvent('Resuming microphone after reconnect.');
+        unawaited(_startMicStream());
+      }
+    } catch (error) {
+      _appendDebugEvent(
+        'Live session connect failed: $error',
+        code: 'connect_retry',
+      );
       if (!mounted || _isDisposing) {
         return;
       }
       controller.setLiveSessionReady(false);
-      controller.setError('Live voice is unavailable right now. Using fallback mode.');
+      if (_reconnectAttempt == 0) {
+        controller.setError(
+          'Live voice is unavailable right now. Retrying...',
+          code: 'connect_retry',
+        );
+      }
+      _scheduleReconnect(reason: error.toString());
     } finally {
       _liveSessionConnecting = false;
     }
@@ -189,6 +295,7 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
     _liveSession = null;
     if (session != null) {
       await session.close();
+      _appendDebugEvent('Live session disconnected.');
     }
 
     if (mounted && updateState && !_isDisposing) {
@@ -202,6 +309,8 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
     if (!mounted || _isDisposing) {
       return;
     }
+
+    _recordLiveEvent(event);
 
     final VoiceAssistantController controller = ref.read(
       voiceAssistantControllerProvider.notifier,
@@ -227,10 +336,6 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
       case VoiceLiveEventType.audioChunk:
         if (_discardCurrentModelTurn || event.audioChunk == null) {
           return;
-        }
-
-        if (_micStreamActive) {
-          await _stopMicStream(markProcessing: false);
         }
 
         final int sampleRate = event.audioSampleRate ?? _liveOutputSampleRate;
@@ -261,7 +366,10 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
         }
 
         _liveReplyBuffer.clear();
-        if (_playbackQueue.isEmpty && !_micStreamActive) {
+        if (_micStreamActive && _playbackQueue.isEmpty) {
+          controller.setStatus(VoiceAssistantStatus.listening);
+          controller.updateTranscript('Continuous voice mode is active.');
+        } else if (_playbackQueue.isEmpty && !_micStreamActive) {
           controller.setStatus(VoiceAssistantStatus.idle);
         }
         break;
@@ -270,22 +378,25 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
         _liveReplyBuffer.clear();
         await _clearPlayback(immediate: true);
         controller.clearStreamingReply();
-        if (!_micStreamActive) {
+        if (_micStreamActive) {
+          controller.setStatus(VoiceAssistantStatus.listening);
+          controller.updateTranscript('Continuous voice mode is active.');
+        } else {
           controller.setStatus(VoiceAssistantStatus.idle);
         }
         break;
       case VoiceLiveEventType.disconnected:
+        _resumeMicAfterReconnect = _micStreamActive;
         if (_micStreamActive) {
           await _stopMicStream(markProcessing: false, suppressUi: true);
         }
         await _clearPlayback(immediate: true);
         controller.setLiveSessionReady(false);
         await _disconnectLiveSession(updateState: false);
-        if (mounted && !_isDisposing) {
-          unawaited(_connectLiveSession());
-        }
+        _scheduleReconnect(reason: 'Live connection disconnected.');
         break;
       case VoiceLiveEventType.error:
+        _resumeMicAfterReconnect = _micStreamActive;
         if (_micStreamActive) {
           await _stopMicStream(markProcessing: false, suppressUi: true);
         }
@@ -293,13 +404,73 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
         controller.setLiveSessionReady(false);
         controller.setError(
           event.errorMessage ?? 'Live voice session failed. Using fallback mode.',
+          code: event.errorCode ?? event.errorStatus,
         );
         await _disconnectLiveSession(updateState: false);
-        if (mounted && !_isDisposing) {
-          unawaited(_connectLiveSession());
-        }
+        _scheduleReconnect(reason: event.errorMessage);
         break;
     }
+  }
+
+  void _cancelReconnectTimer() {
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+  }
+
+  void _scheduleReconnect({String? reason}) {
+    if (!mounted || _isDisposing || !_shouldMaintainLiveConnection) {
+      return;
+    }
+
+    if (_liveSession != null || _liveSessionConnecting || _reconnectTimer != null) {
+      return;
+    }
+
+    const int maxAttempts = 6;
+    if (_reconnectAttempt >= maxAttempts) {
+      _shouldMaintainLiveConnection = false;
+      _resumeMicAfterReconnect = false;
+      _cancelReconnectTimer();
+      _appendDebugEvent(
+        'Reconnect exhausted after $maxAttempts attempts.',
+        code: 'reconnect_exhausted',
+      );
+      if (mounted) {
+        ref
+            .read(voiceAssistantControllerProvider.notifier)
+            .setError(
+              'Unable to maintain live connection. Tap Start continuous voice to retry.',
+              code: 'reconnect_exhausted',
+            );
+      }
+      return;
+    }
+
+    _reconnectAttempt += 1;
+    final int delaySeconds = switch (_reconnectAttempt) {
+      1 => 1,
+      2 => 2,
+      3 => 4,
+      4 => 8,
+      _ => 12,
+    };
+
+    _lastReconnectReason = (reason ?? '').trim().isEmpty
+        ? 'Unspecified reconnect reason.'
+        : reason!.trim();
+    _lastReconnectAt = DateTime.now();
+    _appendDebugEvent(
+      'Scheduled reconnect attempt $_reconnectAttempt in ${delaySeconds}s. Reason: $_lastReconnectReason',
+      code: 'reconnect_wait',
+    );
+
+    _reconnectTimer = Timer(Duration(seconds: delaySeconds), () {
+      _reconnectTimer = null;
+      if (!mounted || _isDisposing || !_shouldMaintainLiveConnection) {
+        return;
+      }
+      unawaited(_connectLiveSession());
+    });
   }
 
   Future<void> _restartPcmPlayer({required int sampleRate}) async {
@@ -364,14 +535,22 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
       }
     } finally {
       _playbackQueueActive = false;
-      if (mounted && !_micStreamActive && _playbackQueue.isEmpty) {
+      if (mounted && _playbackQueue.isEmpty) {
+        final VoiceAssistantController controller = ref.read(
+          voiceAssistantControllerProvider.notifier,
+        );
         final VoiceAssistantStatus status = ref
             .read(voiceAssistantControllerProvider)
             .status;
-        if (status == VoiceAssistantStatus.speaking) {
-          ref
-              .read(voiceAssistantControllerProvider.notifier)
-              .setStatus(VoiceAssistantStatus.idle);
+
+        if (_micStreamActive) {
+          if (status == VoiceAssistantStatus.speaking ||
+              status == VoiceAssistantStatus.processing) {
+            controller.setStatus(VoiceAssistantStatus.listening);
+            controller.updateTranscript('Continuous voice mode is active.');
+          }
+        } else if (status == VoiceAssistantStatus.speaking) {
+          controller.setStatus(VoiceAssistantStatus.idle);
         }
       }
     }
@@ -393,18 +572,44 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
       return;
     }
 
+    if (!_microphonePermissionGranted) {
+      final bool hasMicrophonePermission = await _ensureMicrophonePermission();
+      if (!hasMicrophonePermission) {
+        return;
+      }
+    }
+
+    _shouldMaintainLiveConnection = true;
+    _cancelReconnectTimer();
+
     if (!_voiceReady || !_pcmRecorderReady) {
+      _appendDebugEvent(
+        'Cannot start microphone. Recorder is not ready on this device/session.',
+        code: 'runtime_unavailable',
+      );
       ref
           .read(voiceAssistantControllerProvider.notifier)
-          .setError('Microphone stream is unavailable on this device/session.');
+          .setError(
+            'Microphone stream is unavailable on this device/session.',
+            code: 'runtime_unavailable',
+          );
       return;
+    }
+
+    if (_liveSession == null) {
+      await _connectLiveSession();
     }
 
     final VoiceLiveSession? session = _liveSession;
     if (session == null) {
+      _scheduleReconnect(reason: 'Live session not available for microphone start.');
+      _appendDebugEvent(
+        'Live session not ready during microphone start.',
+        code: 'not_ready',
+      );
       ref
           .read(voiceAssistantControllerProvider.notifier)
-          .setError('Live session is not ready yet. Please try again.');
+          .setError('Live session is not ready yet. Reconnecting...', code: 'not_ready');
       return;
     }
 
@@ -436,7 +641,7 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
         }
         ref
             .read(voiceAssistantControllerProvider.notifier)
-            .setError('Microphone stream failed: $error');
+            .setError('Microphone stream failed: $error', code: 'mic_stream');
       },
       cancelOnError: false,
     );
@@ -448,23 +653,30 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
         numChannels: 1,
         sampleRate: _liveInputSampleRate,
         bufferSize: 2048,
+        enableNoiseSuppression: true,
+        enableEchoCancellation: true,
         audioSource: AudioSource.defaultSource,
       );
 
       _micStreamActive = true;
+      _appendDebugEvent('Microphone stream started.');
 
       final VoiceAssistantController controller = ref.read(
         voiceAssistantControllerProvider.notifier,
       );
       controller.startLiveAudioTurn();
-      controller.updateTranscript('Listening in live mode... tap again to stop.');
+      controller.updateTranscript('Continuous voice mode is active.');
       controller.setStatus(VoiceAssistantStatus.listening);
     } catch (error) {
+      _appendDebugEvent(
+        'Unable to start microphone stream: $error',
+        code: 'mic_start',
+      );
       await _stopMicStream(markProcessing: false);
       if (mounted) {
         ref
             .read(voiceAssistantControllerProvider.notifier)
-            .setError('Unable to start microphone stream: $error');
+            .setError('Unable to start microphone stream: $error', code: 'mic_start');
       }
     }
   }
@@ -484,6 +696,7 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
     }
 
     _micStreamActive = false;
+    _appendDebugEvent('Microphone stream stopped.');
 
     final StreamSubscription<Uint8List>? micSubscription = _micPcmSubscription;
     _micPcmSubscription = null;
@@ -522,10 +735,17 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
       return;
     }
 
-    if (state.status == VoiceAssistantStatus.listening) {
-      await _stopMicStream(markProcessing: true);
+    if (_micStreamActive) {
+      _appendDebugEvent('User stopped continuous voice mode.');
+      _shouldMaintainLiveConnection = false;
+      _resumeMicAfterReconnect = false;
+      _reconnectAttempt = 0;
+      _cancelReconnectTimer();
+      await _stopMicStream(markProcessing: false);
       return;
     }
+
+    _appendDebugEvent('User started continuous voice mode.');
 
     if (state.status == VoiceAssistantStatus.speaking ||
         state.status == VoiceAssistantStatus.processing) {
@@ -550,7 +770,12 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
       return;
     }
 
+    _appendDebugEvent('Submitting manual fallback prompt.');
+
     _manualController.clear();
+
+    _shouldMaintainLiveConnection = true;
+    _cancelReconnectTimer();
 
     if (_micStreamActive) {
       await _stopMicStream(markProcessing: true);
@@ -569,7 +794,15 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
           prompt: prompt,
         );
       } catch (error) {
-        controller.setError('Unable to send prompt to live session: $error');
+        _appendDebugEvent(
+          'Unable to send live text prompt: $error',
+          code: 'send_prompt',
+        );
+        controller.setError(
+          'Unable to send prompt to live session: $error',
+          code: 'send_prompt',
+        );
+        _scheduleReconnect(reason: error.toString());
       }
       return;
     }
@@ -703,7 +936,7 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
               ),
               child: Text(
                 state.transcript.isEmpty
-                    ? 'Tap the mic, speak naturally, then tap again to stop and send audio.'
+                    ? 'Tap the mic once to start continuous live conversation. Tap again to stop.'
                     : state.transcript,
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
@@ -740,7 +973,16 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
                   color: Theme.of(context).colorScheme.error,
                 ),
               ),
+              if (state.errorCode != null && state.errorCode!.trim().isNotEmpty)
+                Text(
+                  'Error code: ${state.errorCode}',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                ),
             ],
+            const SizedBox(height: 8),
+            _buildDebugPanel(context, state),
             const SizedBox(height: 10),
             Expanded(
               child: recentMessages.isEmpty
@@ -843,14 +1085,202 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
       case VoiceAssistantStatus.idle:
         return 'Idle';
       case VoiceAssistantStatus.listening:
-        return 'Streaming microphone audio';
+        return 'Continuous listening is active';
       case VoiceAssistantStatus.processing:
-        return 'Waiting for model response';
+        return 'Listening and waiting for model response';
       case VoiceAssistantStatus.speaking:
-        return 'Playing model audio (tap mic to interrupt)';
+        return 'Speaking while continuous listening stays active';
       case VoiceAssistantStatus.error:
         return 'Error';
     }
+  }
+
+  void _recordLiveEvent(VoiceLiveEvent event) {
+    _lastLiveEventType = event.type.name;
+    _lastLiveEventAt = DateTime.now();
+
+    switch (event.type) {
+      case VoiceLiveEventType.setupComplete:
+        _appendDebugEvent('Live setup complete.');
+        break;
+      case VoiceLiveEventType.turnComplete:
+        _appendDebugEvent('Live turn complete.');
+        break;
+      case VoiceLiveEventType.interrupted:
+        _appendDebugEvent('Live response interrupted.');
+        break;
+      case VoiceLiveEventType.disconnected:
+        _appendDebugEvent('Live socket disconnected.', code: 'disconnected');
+        break;
+      case VoiceLiveEventType.error:
+        _appendDebugEvent(
+          event.errorMessage ?? 'Live event error.',
+          code: event.errorCode ?? event.errorStatus ?? 'live_error',
+        );
+        break;
+      case VoiceLiveEventType.textDelta:
+      case VoiceLiveEventType.audioChunk:
+        break;
+    }
+  }
+
+  void _appendDebugEvent(String message, {String? code}) {
+    final String timestamp = DateFormat('HH:mm:ss').format(DateTime.now());
+    final String normalizedCode = (code ?? '').trim();
+    final String line = normalizedCode.isEmpty
+        ? '[$timestamp] $message'
+        : '[$timestamp][$normalizedCode] $message';
+    _debugEvents.insert(0, line);
+    if (_debugEvents.length > 80) {
+      _debugEvents.removeRange(80, _debugEvents.length);
+    }
+
+    if (mounted && !_isDisposing) {
+      setState(() {});
+    }
+  }
+
+  String _buildDebugSnapshot(VoiceAssistantState state) {
+    final DateTime now = DateTime.now();
+    final String uptime = _formatDuration(now.difference(_sessionStartedAt));
+    final String lastEvent = _lastLiveEventType == null
+        ? 'none'
+        : '$_lastLiveEventType @ ${_formatTimestamp(_lastLiveEventAt)}';
+    final String reconnectInfo = _lastReconnectAt == null
+        ? 'none'
+        : '${_formatTimestamp(_lastReconnectAt)} | ${_lastReconnectReason ?? 'unknown'}';
+
+    final List<String> lines = <String>[
+      'platform: ${defaultTargetPlatform.name}',
+      'uptime: $uptime',
+      'state.status: ${state.status.name}',
+      'state.liveSessionReady: ${state.liveSessionReady}',
+      'state.errorCode: ${state.errorCode ?? '-'}',
+      'state.errorMessage: ${state.errorMessage ?? '-'}',
+      'runtime.voiceReady: $_voiceReady',
+      'runtime.recorderReady: $_pcmRecorderReady',
+      'runtime.playerReady: $_pcmPlayerReady',
+      'runtime.micStreamActive: $_micStreamActive',
+      'runtime.liveSessionConnecting: $_liveSessionConnecting',
+      'runtime.liveSessionObject: ${_liveSession != null}',
+      'runtime.maintainConnection: $_shouldMaintainLiveConnection',
+      'runtime.resumeMicAfterReconnect: $_resumeMicAfterReconnect',
+      'runtime.reconnectAttempt: $_reconnectAttempt',
+      'runtime.reconnectTimerActive: ${_reconnectTimer != null}',
+      'runtime.lastReconnect: $reconnectInfo',
+      'runtime.lastLiveEvent: $lastEvent',
+      'runtime.micPermissionGranted: $_microphonePermissionGranted',
+      'runtime.micPermissionState: $_microphonePermissionState',
+      'config.apiKeyLoaded: ${AiRuntimeConfig.apiKey.trim().isNotEmpty}',
+      'config.voiceModel: ${AiRuntimeConfig.voiceModel}',
+      'config.voiceName: ${AiRuntimeConfig.liveVoiceName}',
+      'config.inputSampleRate: $_liveInputSampleRate',
+      'config.outputSampleRate: $_liveOutputSampleRate',
+      'recentEvents:',
+      ..._debugEvents.take(20).map((String line) => '  $line'),
+    ];
+
+    return lines.join('\n');
+  }
+
+  String _formatTimestamp(DateTime? value) {
+    if (value == null) {
+      return '-';
+    }
+    return DateFormat('HH:mm:ss').format(value);
+  }
+
+  String _formatDuration(Duration duration) {
+    final int totalSeconds = duration.inSeconds;
+    final int hours = totalSeconds ~/ 3600;
+    final int minutes = (totalSeconds % 3600) ~/ 60;
+    final int seconds = totalSeconds % 60;
+    return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _copyDebugSnapshot(VoiceAssistantState state) async {
+    final String snapshot = _buildDebugSnapshot(state);
+    await Clipboard.setData(ClipboardData(text: snapshot));
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Debug report copied to clipboard.')),
+    );
+  }
+
+  Widget _buildDebugPanel(BuildContext context, VoiceAssistantState state) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(
+          alpha: 0.24,
+        ),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: ExpansionTile(
+        initiallyExpanded: _showDebugPanel,
+        onExpansionChanged: (bool expanded) {
+          setState(() {
+            _showDebugPanel = expanded;
+          });
+        },
+        title: Text(
+          'Debug details (device test)',
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
+        subtitle: Text(
+          'Live: ${state.liveSessionReady} | reconnect: $_reconnectAttempt | mic: $_micStreamActive | permission: $_microphonePermissionState',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: FilledButton.tonalIcon(
+                  onPressed: () => _copyDebugSnapshot(state),
+                  icon: const Icon(Icons.copy, size: 16),
+                  label: const Text('Copy report'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: FilledButton.tonalIcon(
+                  onPressed: _liveSessionConnecting
+                      ? null
+                      : () async {
+                          _appendDebugEvent('Manual reconnect requested.');
+                          await _disconnectLiveSession(updateState: false);
+                          if (!mounted || _isDisposing) {
+                            return;
+                          }
+                          await _connectLiveSession();
+                        },
+                  icon: const Icon(Icons.refresh, size: 16),
+                  label: const Text('Reconnect'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(10),
+              color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.6),
+            ),
+            child: SelectableText(
+              _buildDebugSnapshot(state),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                fontFamily: 'monospace',
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   IconData _statusIcon(VoiceAssistantStatus status) {
@@ -885,14 +1315,14 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
   String _micLabel(VoiceAssistantStatus status) {
     switch (status) {
       case VoiceAssistantStatus.listening:
-        return 'Stop and send';
+        return 'Stop continuous voice';
       case VoiceAssistantStatus.speaking:
-        return 'Interrupt and listen';
+        return 'Stop continuous voice';
       case VoiceAssistantStatus.processing:
-        return 'Interrupt and listen';
+        return 'Stop continuous voice';
       case VoiceAssistantStatus.error:
       case VoiceAssistantStatus.idle:
-        return 'Start listening';
+        return 'Start continuous voice';
     }
   }
 

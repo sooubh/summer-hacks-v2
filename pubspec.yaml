@@ -52,6 +52,7 @@ dependencies:
   web_socket_channel: ^3.0.1
   flutter_sound: ^9.30.0
   logger: ^2.7.0
+  permission_handler: ^11.4.0
 
 dev_dependencies:
   flutter_test:

@@ -96,6 +96,8 @@ class VoiceLiveEvent {
     this.audioSampleRate,
     this.fullText = '',
     this.errorMessage,
+    this.errorCode,
+    this.errorStatus,
   });
 
   factory VoiceLiveEvent.setupComplete() {
@@ -132,10 +134,16 @@ class VoiceLiveEvent {
     return const VoiceLiveEvent._(type: VoiceLiveEventType.disconnected);
   }
 
-  factory VoiceLiveEvent.error(String message) {
+  factory VoiceLiveEvent.error(
+    String message, {
+    String? code,
+    String? status,
+  }) {
     return VoiceLiveEvent._(
       type: VoiceLiveEventType.error,
       errorMessage: message,
+      errorCode: code,
+      errorStatus: status,
     );
   }
 
@@ -145,6 +153,8 @@ class VoiceLiveEvent {
   final int? audioSampleRate;
   final String fullText;
   final String? errorMessage;
+  final String? errorCode;
+  final String? errorStatus;
 }
 
 enum VoiceAssistantStatus { idle, listening, processing, speaking, error }
@@ -210,6 +220,7 @@ class VoiceAssistantState {
     required this.streamingReply,
     this.activeModel,
     this.errorMessage,
+    this.errorCode,
   });
 
   factory VoiceAssistantState.initial() {
@@ -229,6 +240,7 @@ class VoiceAssistantState {
   final String streamingReply;
   final String? activeModel;
   final String? errorMessage;
+  final String? errorCode;
 
   VoiceAssistantState copyWith({
     VoiceAssistantStatus? status,
@@ -238,6 +250,7 @@ class VoiceAssistantState {
     String? streamingReply,
     String? activeModel,
     String? errorMessage,
+    String? errorCode,
     bool clearError = false,
   }) {
     return VoiceAssistantState(
@@ -248,6 +261,7 @@ class VoiceAssistantState {
       streamingReply: streamingReply ?? this.streamingReply,
       activeModel: activeModel ?? this.activeModel,
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
+      errorCode: clearError ? null : (errorCode ?? this.errorCode),
     );
   }
 }

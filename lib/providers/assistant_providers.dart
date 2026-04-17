@@ -336,11 +336,12 @@ class VoiceAssistantController extends Notifier<VoiceAssistantState> {
     );
   }
 
-  void setError(String message) {
+  void setError(String message, {String? code}) {
     state = state.copyWith(
       status: VoiceAssistantStatus.error,
       streamingReply: '',
       errorMessage: message,
+      errorCode: code,
     );
   }
 
