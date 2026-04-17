@@ -49,6 +49,11 @@ app.*.map.json
 /.firebase/
 firebase-debug*.log
 
+# App local env files
+/.env
+/.env.*
+!/.env.example
+
 # Cloud Functions build and dependencies
 /functions/node_modules/
 /functions/lib/

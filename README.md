@@ -46,15 +46,17 @@ Production-ready blueprint and scaffold for a personal finance app focused on In
 	- `npm run build`
 	- `firebase deploy --only functions`
 5. Run app:
-	- Pass Gemini settings through Dart defines:
-	  - `--dart-define=GEMINI_API_KEY=your_key`
-	  - `--dart-define=GEMINI_CHAT_FAST_MODEL=models/gemini-2.5-flash`
-	  - `--dart-define=GEMINI_CHAT_DEEP_MODEL=models/gemini-2.5-pro`
-	  - `--dart-define=GEMINI_VOICE_MODEL=models/gemini-3.1-flash-live-preview`
-	- Example:
-	  - `flutter run -d chrome --dart-define=GEMINI_API_KEY=your_key`
+	- Create a root `.env` file (copy from `.env.example`) and set:
+	  - `GEMINI_API_KEY=your_key`
+	  - `GEMINI_CHAT_FAST_MODEL=models/gemini-2.5-flash`
+	  - `GEMINI_CHAT_DEEP_MODEL=models/gemini-2.5-pro`
+	  - `GEMINI_VOICE_MODEL=models/gemini-3.1-flash-live-preview`
+	- Then run:
+	  - `flutter run -d chrome`
 	- or:
-	  - `flutter run -d android --dart-define=GEMINI_API_KEY=your_key`
+	  - `flutter run -d android`
+	- Optional fallback:
+	  - You can still override with `--dart-define` values.
 
 ## Core docs
 

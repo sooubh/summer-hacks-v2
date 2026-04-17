@@ -358,7 +358,7 @@ class AssistantService {
     final String value = AiRuntimeConfig.apiKey.trim();
     if (value.isEmpty) {
       throw StateError(
-        'GEMINI_API_KEY is missing. Start Flutter with --dart-define=GEMINI_API_KEY=<your_key>.',
+        'GEMINI_API_KEY is missing. Set it in root .env or pass --dart-define=GEMINI_API_KEY=<your_key>.',
       );
     }
     return value;
