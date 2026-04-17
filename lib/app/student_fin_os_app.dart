@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:student_fin_os/core/router/app_router.dart';
 import 'package:student_fin_os/core/theme/app_theme.dart';
 import 'package:student_fin_os/l10n/app_localizations.dart';
+import 'package:student_fin_os/providers/auth_providers.dart';
 import 'package:student_fin_os/providers/locale_providers.dart';
 
 class StudentFinOsApp extends ConsumerWidget {
@@ -11,6 +12,7 @@ class StudentFinOsApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(starterDataBootstrapProvider);
     final Locale? selectedLocale = ref.watch(localeProvider);
 
     return MaterialApp.router(

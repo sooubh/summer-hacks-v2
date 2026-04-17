@@ -77,9 +77,6 @@ class AssistantService {
         history: allMessages,
         temperature: responseMode == AssistantResponseMode.deep ? 0.35 : 0.45,
         maxOutputTokens: responseMode == AssistantResponseMode.deep ? 900 : 650,
-        thinkingLevel: responseMode == AssistantResponseMode.deep
-            ? 'medium'
-            : 'minimal',
         attempts: 3,
       );
 
@@ -106,7 +103,6 @@ class AssistantService {
       history: allMessages,
       temperature: 0.45,
       maxOutputTokens: 650,
-      thinkingLevel: 'minimal',
       attempts: 3,
     );
 
@@ -149,7 +145,6 @@ class AssistantService {
         history: allMessages,
         temperature: 0.3,
         maxOutputTokens: 420,
-        thinkingLevel: 'minimal',
         attempts: 2,
       );
     } catch (_) {
@@ -162,7 +157,6 @@ class AssistantService {
         history: allMessages,
         temperature: 0.35,
         maxOutputTokens: 420,
-        thinkingLevel: 'minimal',
         attempts: 2,
       );
     }
@@ -221,7 +215,6 @@ class AssistantService {
     required List<Map<String, String>> history,
     required double temperature,
     required int maxOutputTokens,
-    required String thinkingLevel,
     required int attempts,
   }) async {
     Object? lastError;
@@ -235,7 +228,6 @@ class AssistantService {
           history: history,
           temperature: temperature,
           maxOutputTokens: maxOutputTokens,
-          thinkingLevel: thinkingLevel,
         );
       } catch (error) {
         lastError = error;
@@ -255,7 +247,6 @@ class AssistantService {
     required List<Map<String, String>> history,
     required double temperature,
     required int maxOutputTokens,
-    required String thinkingLevel,
   }) async {
     final Uri uri = Uri.https(
       'generativelanguage.googleapis.com',
@@ -281,7 +272,6 @@ class AssistantService {
       'generationConfig': <String, dynamic>{
         'temperature': temperature,
         'maxOutputTokens': maxOutputTokens,
-        'thinkingConfig': <String, String>{'thinkingLevel': thinkingLevel},
       },
     };
 
@@ -427,7 +417,7 @@ class AssistantService {
     final String value = AiRuntimeConfig.apiKey.trim();
     if (value.isEmpty) {
       throw StateError(
-        'AI_API_KEY is missing. Set it in root .env or pass --dart-define=AI_API_KEY=<your_key>.',
+        'AI_API_KEY (or GEMINI_API_KEY) is missing. Set it in root .env or pass --dart-define=AI_API_KEY=<your_key>.',
       );
     }
     return value;
@@ -441,8 +431,7 @@ class VoiceLiveSession {
     required this.responseModalities,
     this.systemInstruction,
     this.voiceName,
-  })
-    : _channel = channel {
+  }) : _channel = channel {
     _streamSubscription = _channel.stream.listen(
       _handleRawMessage,
       onError: _handleStreamError,
@@ -565,9 +554,7 @@ class VoiceLiveSession {
     final String normalizedVoiceName = (voiceName ?? '').trim();
     final String normalizedInstruction = (systemInstruction ?? '').trim();
 
-    final Map<String, dynamic> setup = <String, dynamic>{
-      'model': model,
-    };
+    final Map<String, dynamic> setup = <String, dynamic>{'model': model};
 
     final Map<String, dynamic> generationConfig = <String, dynamic>{
       'responseModalities': responseModalities,
@@ -593,9 +580,7 @@ class VoiceLiveSession {
 
     setup['generationConfig'] = generationConfig;
 
-    final Map<String, dynamic> payload = <String, dynamic>{
-      'setup': setup,
-    };
+    final Map<String, dynamic> payload = <String, dynamic>{'setup': setup};
     _channel.sink.add(jsonEncode(payload));
   }
 
@@ -615,8 +600,8 @@ class VoiceLiveSession {
 
     final Map<String, dynamic>? rootError = _asMap(payload['error']);
     if (rootError != null) {
-      final String message =
-          (rootError['message'] ?? rootError.toString()).toString();
+      final String message = (rootError['message'] ?? rootError.toString())
+          .toString();
       final String? code = _extractErrorCode(rootError);
       final String? status = _extractErrorStatus(rootError);
       if (!_setupCompleter.isCompleted) {
@@ -700,8 +685,9 @@ class VoiceLiveSession {
           continue;
         }
 
-        final String mimeType = (inlineData['mimeType'] ?? inlineData['mime_type'] ?? '')
-            .toString();
+        final String mimeType =
+            (inlineData['mimeType'] ?? inlineData['mime_type'] ?? '')
+                .toString();
         final int? sampleRate = _extractRateFromMimeType(mimeType);
         _emit(VoiceLiveEvent.audioChunk(bytes, sampleRate: sampleRate));
       } catch (_) {
@@ -742,7 +728,9 @@ class VoiceLiveSession {
 
     if (!_setupCompleter.isCompleted) {
       _setupCompleter.completeError(
-        StateError('Live connection closed before setup completed. $closeDetails'),
+        StateError(
+          'Live connection closed before setup completed. $closeDetails',
+        ),
       );
     }
 
@@ -840,9 +828,7 @@ class VoiceLiveSession {
   }
 
   static int? _extractRateFromMimeType(String mimeType) {
-    final RegExpMatch? match = RegExp(r'rate\s*=\s*(\d+)').firstMatch(
-      mimeType,
-    );
+    final RegExpMatch? match = RegExp(r'rate\s*=\s*(\d+)').firstMatch(mimeType);
     if (match == null) {
       return null;
     }

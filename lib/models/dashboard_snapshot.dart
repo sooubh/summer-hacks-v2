@@ -3,6 +3,7 @@ import 'package:student_fin_os/models/finance_transaction.dart';
 class DashboardSnapshot {
   const DashboardSnapshot({
     required this.totalBalance,
+    required this.totalSavings,
     required this.weeklySpend,
     required this.monthlySpend,
     required this.burnRate,
@@ -15,6 +16,7 @@ class DashboardSnapshot {
   });
 
   final double totalBalance;
+  final double totalSavings;
   final double weeklySpend;
   final double monthlySpend;
   final double burnRate;

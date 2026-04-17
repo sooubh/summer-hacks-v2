@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import 'package:student_fin_os/core/config/ai_runtime_config.dart';
+import 'package:student_fin_os/features/assistant/ui/voice_assistant_sheet.dart';
 import 'package:student_fin_os/models/assistant_models.dart';
 import 'package:student_fin_os/providers/assistant_providers.dart';
 
 class ChatAssistantScreen extends ConsumerStatefulWidget {
-  const ChatAssistantScreen({super.key});
+  const ChatAssistantScreen({super.key, this.initialMessage});
+
+  final String? initialMessage;
 
   @override
   ConsumerState<ChatAssistantScreen> createState() =>
@@ -16,6 +18,16 @@ class ChatAssistantScreen extends ConsumerStatefulWidget {
 class _ChatAssistantScreenState extends ConsumerState<ChatAssistantScreen> {
   final TextEditingController _composerController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialMessage != null && widget.initialMessage!.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.read(chatAssistantControllerProvider.notifier).sendMessage(widget.initialMessage!);
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -46,6 +58,20 @@ class _ChatAssistantScreenState extends ConsumerState<ChatAssistantScreen> {
     });
   }
 
+  Future<void> _openVoiceAssistant() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      builder: (BuildContext context) {
+        return const FractionallySizedBox(
+          heightFactor: 0.92,
+          child: VoiceAssistantSheet(),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ChatAssistantState state = ref.watch(chatAssistantControllerProvider);
@@ -74,8 +100,41 @@ class _ChatAssistantScreenState extends ConsumerState<ChatAssistantScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Chat Assistant'),
+        titleSpacing: 0,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Text(
+              'FinMate Chat',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            Text(
+              'Personalized finance guidance from your data',
+              style: Theme.of(context).textTheme.labelMedium,
+            ),
+          ],
+        ),
         actions: <Widget>[
+          IconButton(
+            tooltip: state.mode == AssistantResponseMode.fast ? 'Fast Mode' : 'Deep Mode',
+            onPressed: () {
+              final newMode = state.mode == AssistantResponseMode.fast 
+                  ? AssistantResponseMode.deep 
+                  : AssistantResponseMode.fast;
+              ref.read(chatAssistantControllerProvider.notifier).setMode(newMode);
+            },
+            icon: Icon(
+              state.mode == AssistantResponseMode.fast ? Icons.flash_on : Icons.psychology_alt,
+            ),
+          ),
+          IconButton(
+            tooltip: 'Open voice assistant',
+            onPressed: _openVoiceAssistant,
+            icon: const Icon(Icons.graphic_eq),
+          ),
           IconButton(
             tooltip: 'Clear chat',
             onPressed: () {
@@ -89,19 +148,9 @@ class _ChatAssistantScreenState extends ConsumerState<ChatAssistantScreen> {
       ),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
           child: Column(
             children: <Widget>[
-              _ModeHeader(
-                mode: state.mode,
-                activeModel: state.activeModel,
-                onModeChanged: (AssistantResponseMode mode) {
-                  ref
-                      .read(chatAssistantControllerProvider.notifier)
-                      .setMode(mode);
-                },
-              ),
-              const SizedBox(height: 12),
               Expanded(
                 child: _MessageList(
                   scrollController: _scrollController,
@@ -110,29 +159,44 @@ class _ChatAssistantScreenState extends ConsumerState<ChatAssistantScreen> {
                 ),
               ),
               if (state.errorMessage != null) ...<Widget>[
-                const SizedBox(height: 8),
-                Row(
-                  children: <Widget>[
-                    Expanded(
-                      child: Text(
-                        'Last request failed. Retry with the same prompt.',
-                        style: Theme.of(context).textTheme.bodySmall,
+                const SizedBox(height: 10),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.errorContainer,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Row(
+                    children: <Widget>[
+                      Icon(
+                        Icons.error_outline,
+                        color: Theme.of(context).colorScheme.onErrorContainer,
                       ),
-                    ),
-                    TextButton.icon(
-                      onPressed: state.isTyping
-                          ? null
-                          : () {
-                              ref
-                                  .read(
-                                    chatAssistantControllerProvider.notifier,
-                                  )
-                                  .retryLast();
-                            },
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('Retry'),
-                    ),
-                  ],
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Last request failed. Retry with the same prompt.',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).colorScheme.onErrorContainer,
+                          ),
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: state.isTyping
+                            ? null
+                            : () {
+                                ref
+                                    .read(
+                                      chatAssistantControllerProvider.notifier,
+                                    )
+                                    .retryLast();
+                              },
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Retry'),
+                      ),
+                    ],
+                  ),
                 ),
               ],
               if (state.suggestedPrompts.isNotEmpty) ...<Widget>[
@@ -145,101 +209,51 @@ class _ChatAssistantScreenState extends ConsumerState<ChatAssistantScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: state.suggestedPrompts.map((String prompt) {
-                    return ActionChip(
-                      onPressed: state.isTyping
-                          ? null
-                          : () {
-                              ref
-                                  .read(
-                                    chatAssistantControllerProvider.notifier,
-                                  )
-                                  .sendPrompt(prompt);
-                            },
-                      label: Text(prompt),
-                    );
-                  }).toList(),
+                SizedBox(
+                  height: 40,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: state.suggestedPrompts.length,
+                    separatorBuilder: (_, _) => const SizedBox(width: 8),
+                    itemBuilder: (BuildContext context, int index) {
+                      final String prompt = state.suggestedPrompts[index];
+                      return ActionChip(
+                        onPressed: state.isTyping
+                            ? null
+                            : () {
+                                ref
+                                    .read(
+                                      chatAssistantControllerProvider.notifier,
+                                    )
+                                    .sendPrompt(prompt);
+                              },
+                        label: Text(prompt),
+                      );
+                    },
+                  ),
                 ),
               ],
               const SizedBox(height: 12),
-              _Composer(
-                controller: _composerController,
-                enabled: !state.isTyping,
-                onSubmitted: _sendCurrentMessage,
+              Container(
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerLowest,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.outlineVariant,
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
+                  child: _Composer(
+                    controller: _composerController,
+                    enabled: !state.isTyping,
+                    onSubmitted: _sendCurrentMessage,
+                  ),
+                ),
               ),
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _ModeHeader extends StatelessWidget {
-  const _ModeHeader({
-    required this.mode,
-    required this.activeModel,
-    required this.onModeChanged,
-  });
-
-  final AssistantResponseMode mode;
-  final String? activeModel;
-  final ValueChanged<AssistantResponseMode> onModeChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final String currentModel =
-        activeModel ??
-        (mode == AssistantResponseMode.deep
-            ? AiRuntimeConfig.chatDeepModel
-            : AiRuntimeConfig.chatFastModel);
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Theme.of(
-          context,
-        ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(
-            'AI routing',
-            style: Theme.of(
-              context,
-            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 8),
-          SegmentedButton<AssistantResponseMode>(
-            segments: const <ButtonSegment<AssistantResponseMode>>[
-              ButtonSegment<AssistantResponseMode>(
-                value: AssistantResponseMode.fast,
-                icon: Icon(Icons.flash_on),
-                label: Text('Fast'),
-              ),
-              ButtonSegment<AssistantResponseMode>(
-                value: AssistantResponseMode.deep,
-                icon: Icon(Icons.psychology_alt),
-                label: Text('Deep'),
-              ),
-            ],
-            selected: <AssistantResponseMode>{mode},
-            onSelectionChanged: (Set<AssistantResponseMode> selected) {
-              onModeChanged(selected.first);
-            },
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Model: $currentModel',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-        ],
       ),
     );
   }
@@ -260,10 +274,18 @@ class _MessageList extends StatelessWidget {
   Widget build(BuildContext context) {
     if (messages.isEmpty && !showTypingIndicator) {
       return Center(
-        child: Text(
-          'Ask anything about your spending, goals, budgets, or splits.',
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.bodyMedium,
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 460),
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.36),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Text(
+            'Ask about budgets, spending trends, savings goals, or split settlements.',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
         ),
       );
     }
@@ -279,38 +301,74 @@ class _MessageList extends StatelessWidget {
 
         final AssistantMessage message = messages[index];
         final bool isUser = message.role == AssistantRole.user;
+        final Color bubbleColor = isUser
+            ? Theme.of(context).colorScheme.primaryContainer
+            : message.isError
+            ? Theme.of(context).colorScheme.errorContainer
+            : Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.52);
+        final Color onBubbleColor = isUser
+            ? Theme.of(context).colorScheme.onPrimaryContainer
+            : message.isError
+            ? Theme.of(context).colorScheme.onErrorContainer
+            : Theme.of(context).colorScheme.onSurface;
 
         return Align(
           alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 520),
-            child: Container(
-              margin: const EdgeInsets.symmetric(vertical: 5),
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
-              decoration: BoxDecoration(
-                color: isUser
-                    ? Theme.of(
-                        context,
-                      ).colorScheme.primary.withValues(alpha: 0.2)
-                    : message.isError
-                    ? Theme.of(
-                        context,
-                      ).colorScheme.error.withValues(alpha: 0.18)
-                    : Theme.of(context).colorScheme.surfaceContainerHighest
-                          .withValues(alpha: 0.45),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(message.content),
-                  const SizedBox(height: 6),
-                  Text(
-                    DateFormat('hh:mm a').format(message.timestamp.toLocal()),
-                    style: Theme.of(context).textTheme.labelSmall,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: <Widget>[
+                if (!isUser)
+                  CircleAvatar(
+                    radius: 13,
+                    backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+                    child: Icon(
+                      message.isError ? Icons.error_outline : Icons.smart_toy_outlined,
+                      size: 15,
+                      color: Theme.of(context).colorScheme.onSecondaryContainer,
+                    ),
                   ),
-                ],
-              ),
+                if (!isUser) const SizedBox(width: 8),
+                Container(
+                  margin: const EdgeInsets.symmetric(vertical: 5),
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+                  decoration: BoxDecoration(
+                    color: bubbleColor,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        message.content,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: onBubbleColor,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        DateFormat('hh:mm a').format(message.timestamp.toLocal()),
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: onBubbleColor.withValues(alpha: 0.8),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (isUser) const SizedBox(width: 8),
+                if (isUser)
+                  CircleAvatar(
+                    radius: 13,
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    child: Icon(
+                      Icons.person,
+                      size: 14,
+                      color: Theme.of(context).colorScheme.onPrimary,
+                    ),
+                  ),
+              ],
             ),
           ),
         );
@@ -383,6 +441,8 @@ class _Composer extends StatelessWidget {
             textInputAction: TextInputAction.send,
             onSubmitted: (_) => onSubmitted(),
             decoration: const InputDecoration(
+              border: InputBorder.none,
+              isDense: true,
               labelText: 'Ask your finance question',
               hintText: 'Example: How can I stay under budget this week?',
             ),

@@ -4,6 +4,8 @@ import 'package:student_fin_os/core/utils/currency_formatter.dart';
 import 'package:student_fin_os/core/widgets/empty_state.dart';
 import 'package:student_fin_os/core/widgets/section_header.dart';
 import 'package:student_fin_os/l10n/app_localizations.dart';
+import 'package:student_fin_os/core/utils/brand_styles.dart';
+import 'package:student_fin_os/features/dashboard/ui/transaction_details_sheet.dart';
 import 'package:student_fin_os/models/account.dart';
 import 'package:student_fin_os/models/finance_enums.dart';
 import 'package:student_fin_os/models/finance_transaction.dart';
@@ -104,13 +106,20 @@ class TransactionsScreen extends ConsumerWidget {
                           return Card(
                             margin: const EdgeInsets.only(bottom: 8),
                             child: ListTile(
-                              leading: CircleAvatar(
-                                backgroundColor: tx.isExpense
-                                    ? Colors.redAccent.withValues(alpha: 0.2)
-                                    : Colors.greenAccent.withValues(alpha: 0.2),
-                                child: Icon(
-                                  tx.isExpense ? Icons.call_made : Icons.call_received,
-                                ),
+                                onTap: () {
+                                  showModalBottomSheet(
+                                    context: context,
+                                    isScrollControlled: true,
+                                    backgroundColor: Colors.transparent,
+                                    builder: (ctx) => TransactionDetailsSheet(
+                                      transactions: txList,
+                                      initialIndex: index,
+                                    )
+                                  );
+                                },
+                                leading: CircleAvatar(
+                                  backgroundColor: BrandStyles.getColor(tx.title).withValues(alpha: 0.15),
+                                  child: Icon(BrandStyles.getIcon(tx.title, tx.category), color: BrandStyles.getColor(tx.title), size: 20),
                               ),
                               title: Text(tx.title),
                               subtitle: Text(

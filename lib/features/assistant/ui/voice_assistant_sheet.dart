@@ -5,9 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_sound/flutter_sound.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:logger/logger.dart' show Level;
 import 'package:permission_handler/permission_handler.dart';
+import 'package:student_fin_os/core/router/app_router.dart';
 import 'package:student_fin_os/core/config/ai_runtime_config.dart';
 import 'package:student_fin_os/models/assistant_models.dart';
 import 'package:student_fin_os/providers/assistant_providers.dart';
@@ -21,7 +23,8 @@ class VoiceAssistantSheet extends ConsumerStatefulWidget {
       _VoiceAssistantSheetState();
 }
 
-class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
+class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
+  with WidgetsBindingObserver {
   final FlutterSoundRecorder _pcmRecorder = FlutterSoundRecorder(
     logLevel: Level.warning,
   );
@@ -59,12 +62,15 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
   bool _showDebugPanel = false;
   bool _microphonePermissionGranted = false;
   String _microphonePermissionState = 'unknown';
+  bool _micRecoveryInProgress = false;
   final int _liveInputSampleRate = AiRuntimeConfig.liveInputSampleRate;
   int _liveOutputSampleRate = AiRuntimeConfig.liveOutputSampleRate;
+  Timer? _micHealthCheckTimer;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _appendDebugEvent('Voice assistant sheet initialized.');
     unawaited(_initializeVoiceRuntime());
   }
@@ -72,13 +78,42 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
   @override
   void dispose() {
     _isDisposing = true;
+    WidgetsBinding.instance.removeObserver(this);
     unawaited(_shutdownVoiceRuntime());
     _manualController.dispose();
     super.dispose();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (_isDisposing) {
+      return;
+    }
+
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused) {
+      if (_micStreamActive) {
+        _appendDebugEvent('App paused. Temporarily stopping microphone stream.');
+        _resumeMicAfterReconnect = true;
+        unawaited(_stopMicStream(markProcessing: false, suppressUi: true));
+      }
+      return;
+    }
+
+    if (state == AppLifecycleState.resumed) {
+      if (_shouldMaintainLiveConnection &&
+          !_micStreamActive &&
+          (_resumeMicAfterReconnect || _liveSession != null)) {
+        _appendDebugEvent('App resumed. Restoring continuous voice mode.');
+        _resumeMicAfterReconnect = false;
+        unawaited(_startMicStream());
+      }
+    }
+  }
+
   Future<void> _shutdownVoiceRuntime() async {
     _cancelReconnectTimer();
+    _stopMicHealthMonitor();
     _shouldMaintainLiveConnection = false;
     await _stopMicStream(markProcessing: false, suppressUi: true);
     await _clearPlayback(immediate: true);
@@ -90,7 +125,7 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
     try {
       if (AiRuntimeConfig.apiKey.trim().isEmpty) {
         _appendDebugEvent(
-          'AI_API_KEY is missing from .env and dart-define.',
+          'API key is missing from .env and dart-define. Check GEMINI_API_KEY.',
           code: 'missing_api_key',
         );
       }
@@ -372,6 +407,7 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
         }
         break;
       case VoiceLiveEventType.interrupted:
+        _appendDebugEvent('Model output interrupted. Keeping live listening active.');
         _discardCurrentModelTurn = false;
         _liveReplyBuffer.clear();
         await _clearPlayback(immediate: true);
@@ -379,6 +415,9 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
         if (_micStreamActive) {
           controller.setStatus(VoiceAssistantStatus.listening);
           controller.updateTranscript('Continuous voice mode is active.');
+        } else if (_shouldMaintainLiveConnection) {
+          _resumeMicAfterReconnect = false;
+          unawaited(_startMicStream());
         } else {
           controller.setStatus(VoiceAssistantStatus.idle);
         }
@@ -394,6 +433,22 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
         _scheduleReconnect(reason: 'Live connection disconnected.');
         break;
       case VoiceLiveEventType.error:
+        if (_isTransientLiveError(event) && _shouldMaintainLiveConnection) {
+          _appendDebugEvent(
+            'Transient live error ignored: ${event.errorMessage ?? event.errorCode ?? 'unknown'}',
+            code: event.errorCode ?? event.errorStatus ?? 'transient_live_error',
+          );
+          controller.clearStreamingReply();
+          if (_micStreamActive) {
+            controller.setStatus(VoiceAssistantStatus.listening);
+            controller.updateTranscript('Continuous voice mode is active.');
+          } else {
+            _resumeMicAfterReconnect = false;
+            unawaited(_startMicStream());
+          }
+          break;
+        }
+
         _resumeMicAfterReconnect = _micStreamActive;
         if (_micStreamActive) {
           await _stopMicStream(markProcessing: false, suppressUi: true);
@@ -424,7 +479,7 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
       return;
     }
 
-    const int maxAttempts = 6;
+    const int maxAttempts = 12;
     if (_reconnectAttempt >= maxAttempts) {
       _shouldMaintainLiveConnection = false;
       _resumeMicAfterReconnect = false;
@@ -661,6 +716,7 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
       );
 
       _micStreamActive = true;
+        _startMicHealthMonitor();
       _appendDebugEvent('Microphone stream started.');
 
       final VoiceAssistantController controller = ref.read(
@@ -687,6 +743,8 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
     required bool markProcessing,
     bool suppressUi = false,
   }) async {
+    _stopMicHealthMonitor();
+
     if (!_micStreamActive && _micPcmSubscription == null && _micPcmController == null) {
       return;
     }
@@ -729,6 +787,74 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
         VoiceAssistantStatus.listening) {
       controller.setStatus(VoiceAssistantStatus.idle);
       controller.updateTranscript('');
+    }
+  }
+
+  bool _isTransientLiveError(VoiceLiveEvent event) {
+    final String code = (event.errorCode ?? '').trim().toLowerCase();
+    final String status = (event.errorStatus ?? '').trim().toLowerCase();
+    final String message = (event.errorMessage ?? '').trim().toLowerCase();
+
+    const Set<String> transientCodes = <String>{
+      '1',
+      '10',
+      '11',
+      'cancelled',
+      'canceled',
+      'aborted',
+      'unavailable',
+      'deadline_exceeded',
+    };
+
+    final bool interruptedMessage =
+        message.contains('interrupted') ||
+        message.contains('cancelled') ||
+        message.contains('canceled') ||
+        message.contains('audio stream') ||
+        message.contains('preempted');
+
+    return interruptedMessage ||
+        transientCodes.contains(code) ||
+        transientCodes.contains(status);
+  }
+
+  void _startMicHealthMonitor() {
+    _stopMicHealthMonitor();
+    _micHealthCheckTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      unawaited(_ensureMicStreamHealthy());
+    });
+  }
+
+  void _stopMicHealthMonitor() {
+    _micHealthCheckTimer?.cancel();
+    _micHealthCheckTimer = null;
+  }
+
+  Future<void> _ensureMicStreamHealthy() async {
+    if (!mounted ||
+        _isDisposing ||
+        !_shouldMaintainLiveConnection ||
+        !_voiceReady ||
+        !_pcmRecorderReady ||
+        !_micStreamActive ||
+        _micRecoveryInProgress) {
+      return;
+    }
+
+    if (!_pcmRecorder.isStopped) {
+      return;
+    }
+
+    _micRecoveryInProgress = true;
+    try {
+      _appendDebugEvent(
+        'Recorder became idle unexpectedly. Recovering continuous listening.',
+        code: 'mic_recover',
+      );
+      await _stopMicStream(markProcessing: false, suppressUi: true);
+      await _startMicStream();
+    } finally {
+      _micRecoveryInProgress = false;
     }
   }
 
@@ -838,7 +964,7 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
       child: Padding(
         padding: EdgeInsets.fromLTRB(
           16,
-          16,
+          12,
           16,
           16 + MediaQuery.of(context).viewInsets.bottom,
         ),
@@ -847,13 +973,38 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
           children: <Widget>[
             Row(
               children: <Widget>[
-                Text(
-                  'Voice Assistant',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                Icon(
+                  Icons.graphic_eq,
+                  color: Theme.of(context).colorScheme.primary,
                 ),
-                const Spacer(),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Text(
+                        'Voice Assistant',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      Text(
+                        'Continuous mode stays active across short interruptions',
+                        style: Theme.of(context).textTheme.labelMedium,
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Open chat assistant',
+                  onPressed: () {
+                    final GoRouter router = GoRouter.of(context);
+                    Navigator.of(context).pop();
+                    router.push(AppRoutes.chatAssistant);
+                  },
+                  icon: const Icon(Icons.chat_bubble_outline),
+                ),
                 IconButton(
                   onPressed: () {
                     Navigator.of(context).pop();
@@ -863,65 +1014,7 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
               ],
             ),
             const SizedBox(height: 8),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: state.liveSessionReady
-                    ? Theme.of(context)
-                          .colorScheme
-                          .primary
-                          .withValues(alpha: 0.12)
-                    : Theme.of(context)
-                          .colorScheme
-                          .surfaceContainerHighest
-                          .withValues(alpha: 0.34),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: <Widget>[
-                  Icon(
-                    state.liveSessionReady
-                        ? Icons.wifi_tethering
-                        : Icons.wifi_tethering_error,
-                    size: 16,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      state.liveSessionReady
-                          ? 'Live session connected'
-                          : 'Live session unavailable, using fallback mode',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 10),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: _statusColor(
-                  context,
-                  state.status,
-                ).withValues(alpha: 0.16),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Row(
-                children: <Widget>[
-                  Icon(_statusIcon(state.status), size: 18),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      _statusLabel(state.status),
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            _buildVoiceStatusConsole(context, state),
             const SizedBox(height: 10),
             Container(
               width: double.infinity,
@@ -934,7 +1027,7 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
               ),
               child: Text(
                 state.transcript.isEmpty
-                    ? 'Tap the mic once to start continuous live conversation. Tap again to stop.'
+                    ? 'Tap the mic once to start. The assistant keeps listening continuously until you stop it.'
                     : state.transcript,
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
@@ -985,9 +1078,19 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
             Expanded(
               child: recentMessages.isEmpty
                   ? Center(
-                      child: Text(
-                        'Your recent voice conversation appears here.',
-                        style: Theme.of(context).textTheme.bodySmall,
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .surfaceContainerHighest
+                              .withValues(alpha: 0.3),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Text(
+                          'Your recent voice conversation appears here.',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
                       ),
                     )
                   : ListView.builder(
@@ -1006,13 +1109,13 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
                             constraints: const BoxConstraints(maxWidth: 440),
                             decoration: BoxDecoration(
                               color: isUser
-                                  ? Theme.of(
-                                      context,
-                                    ).colorScheme.primary.withValues(alpha: 0.2)
+                                  ? Theme.of(context)
+                                      .colorScheme
+                                      .primaryContainer
                                   : Theme.of(context)
                                         .colorScheme
                                         .surfaceContainerHighest
-                                        .withValues(alpha: 0.45),
+                                        .withValues(alpha: 0.5),
                               borderRadius: BorderRadius.circular(14),
                             ),
                             child: Column(
@@ -1058,17 +1161,31 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
               ],
             ),
             const SizedBox(height: 12),
-            Semantics(
-              button: true,
-              label: 'Voice assistant microphone control',
-              child: SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: _initializing
-                      ? null
-                      : () => _toggleMicrophone(state),
-                  icon: Icon(_micIcon(state.status)),
-                  label: Text(_micLabel(state.status)),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.26),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Semantics(
+                button: true,
+                label: 'Voice assistant microphone control',
+                child: SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(52),
+                    ),
+                    onPressed: _initializing
+                        ? null
+                        : () => _toggleMicrophone(state),
+                    icon: Icon(_micIcon(state.status), size: 24),
+                    label: Text(
+                      _micLabel(state.status),
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -1091,6 +1208,74 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet> {
       case VoiceAssistantStatus.error:
         return 'Error';
     }
+  }
+
+  Widget _buildVoiceStatusConsole(
+    BuildContext context,
+    VoiceAssistantState state,
+  ) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.34),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.46)),
+      ),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: <Widget>[
+          _buildStatusChip(
+            context: context,
+            icon: state.liveSessionReady
+                ? Icons.wifi_tethering
+                : Icons.wifi_tethering_error,
+            label: state.liveSessionReady ? 'Live connected' : 'Fallback mode',
+            background: state.liveSessionReady
+                ? colorScheme.primary.withValues(alpha: 0.14)
+                : colorScheme.surface,
+          ),
+          _buildStatusChip(
+            context: context,
+            icon: _statusIcon(state.status),
+            label: _statusLabel(state.status),
+            background: _statusColor(context, state.status).withValues(alpha: 0.16),
+          ),
+          _buildStatusChip(
+            context: context,
+            icon: Icons.settings_voice,
+            label: 'Voice: ${AiRuntimeConfig.liveVoiceName}',
+            background: colorScheme.secondary.withValues(alpha: 0.14),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusChip({
+    required BuildContext context,
+    required IconData icon,
+    required String label,
+    required Color background,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(icon, size: 15),
+          const SizedBox(width: 6),
+          Text(label, style: Theme.of(context).textTheme.labelMedium),
+        ],
+      ),
+    );
   }
 
   void _recordLiveEvent(VoiceLiveEvent event) {

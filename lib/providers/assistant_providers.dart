@@ -206,7 +206,7 @@ class ChatAssistantController extends Notifier<ChatAssistantState> {
         ref,
         role: AssistantRole.assistant,
         content:
-            'Assistant is currently unavailable. Tap retry or try again in a moment.',
+            'Assistant is currently unavailable. Error: ${error.toString()}',
         isError: true,
       );
 

@@ -49,14 +49,6 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
         NavigationDestination(icon: Icon(Icons.timeline), label: 'CashFlow'),
       ];
 
-  late final List<NavigationDestination> _mobileDestinations =
-      const <NavigationDestination>[
-        NavigationDestination(icon: Icon(Icons.space_dashboard), label: 'Home'),
-        NavigationDestination(icon: Icon(Icons.swap_horiz), label: 'Txns'),
-        NavigationDestination(icon: Icon(Icons.savings), label: 'Savings'),
-        NavigationDestination(icon: Icon(Icons.lightbulb), label: 'Insights'),
-      ];
-
   @override
   void initState() {
     super.initState();
@@ -92,27 +84,186 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
     );
   }
 
+  Widget _buildCustomBottomNavigationBar(BuildContext context) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final int selectedIndex = _mobileSelectedIndex();
+
+    void showAssistantChoices() {
+      showModalBottomSheet<void>(
+        context: context,
+        builder: (BuildContext sheetContext) {
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Text(
+                    'FinMate AI',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 16),
+                  ListTile(
+                    leading: const Icon(Icons.chat_bubble_outline),
+                    title: const Text('AI Chat'),
+                    subtitle: const Text('Text-based guidance & planning'),
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      context.push(AppRoutes.chatAssistant);
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.graphic_eq),
+                    title: const Text('AI Voice'),
+                    subtitle: const Text('Hands-free continuous conversation'),
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      _openVoiceAssistant();
+                    },
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    }
+
+    Widget buildNavItem(IconData icon, String label, int index) {
+      final bool isSelected = selectedIndex == index;
+      return Expanded(
+        child: InkWell(
+          onTap: () {
+            _onDestinationSelected(_mobileTabIndexes[index]);
+          },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              Container(
+                height: 32,
+                width: 56,
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? colorScheme.secondaryContainer
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(
+                  icon,
+                  size: 24,
+                  color: isSelected
+                      ? colorScheme.onSecondaryContainer
+                      : colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      fontWeight:
+                          isSelected ? FontWeight.bold : FontWeight.w500,
+                      color: isSelected
+                          ? colorScheme.onSurface
+                          : colorScheme.onSurfaceVariant,
+                    ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.only(top: 8, bottom: 8),
+        color: colorScheme.surfaceContainer,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: <Widget>[
+            buildNavItem(Icons.space_dashboard, 'Home', 0),
+            buildNavItem(Icons.swap_horiz, 'Txns', 1),
+            Card(
+              elevation: 4,
+              color: colorScheme.primary,
+              margin: const EdgeInsets.symmetric(horizontal: 4),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                child: IconButton(
+                  tooltip: 'FinMate AI',
+                  icon: Icon(Icons.auto_awesome,
+                      color: colorScheme.onPrimary),
+                  onPressed: showAssistantChoices,
+                ),
+              ),
+            ),
+            buildNavItem(Icons.savings, 'Savings', 2),
+            buildNavItem(Icons.lightbulb, 'Insights', 3),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final bool desktopLayout = MediaQuery.of(context).size.width >= 1000;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Student Financial OS'),
+        leading: Builder(
+          builder: (context) {
+            return IconButton(
+              tooltip: 'Profile',
+              icon: const Icon(Icons.account_circle, size: 28),
+              onPressed: () {
+                context.go('/app/profile');
+              },
+            );
+          }
+        ),
+        title: Container(
+          height: 40,
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: const TextField(
+            decoration: InputDecoration(
+              hintText: 'Search...',
+              prefixIcon: Icon(Icons.search, size: 20),
+              border: InputBorder.none,
+              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            ),
+          ),
+        ),
         actions: <Widget>[
+          if (desktopLayout)
+            IconButton(
+              tooltip: 'Chat assistant',
+              onPressed: () {
+                context.push(AppRoutes.chatAssistant);
+              },
+              icon: const Icon(Icons.chat_bubble_outline),
+            ),
+          if (desktopLayout)
+            IconButton(
+              tooltip: 'Voice assistant',
+              onPressed: _openVoiceAssistant,
+              icon: const Icon(Icons.mic_none),
+            ),
           IconButton(
-            tooltip: 'Chat assistant',
-            onPressed: () {
-              context.push(AppRoutes.chatAssistant);
-            },
-            icon: const Icon(Icons.chat_bubble_outline),
+            tooltip: 'Alerts',
+            onPressed: () {},
+            icon: const Badge(child: Icon(Icons.notifications_none)),
           ),
           IconButton(
-            tooltip: 'Voice assistant',
-            onPressed: _openVoiceAssistant,
-            icon: const Icon(Icons.mic_none),
-          ),
-          IconButton(
+            tooltip: 'Logout',
             onPressed: () =>
                 ref.read(authControllerProvider.notifier).signOut(),
             icon: const Icon(Icons.logout),
@@ -149,18 +300,7 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
             ),
       bottomNavigationBar: desktopLayout
           ? null
-          : NavigationBar(
-              selectedIndex: _mobileSelectedIndex(),
-              destinations: _mobileDestinations,
-              onDestinationSelected: (int mobileIndex) {
-                _onDestinationSelected(_mobileTabIndexes[mobileIndex]);
-              },
-            ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _openVoiceAssistant,
-        icon: const Icon(Icons.mic),
-        label: Text(desktopLayout ? 'Voice Assistant' : 'Voice'),
-      ),
+          : _buildCustomBottomNavigationBar(context),
     );
   }
 }

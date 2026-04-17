@@ -1,34 +1,81 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:student_fin_os/core/utils/currency_formatter.dart';
 import 'package:student_fin_os/core/widgets/empty_state.dart';
 import 'package:student_fin_os/core/widgets/metric_card.dart';
 import 'package:student_fin_os/core/widgets/section_header.dart';
 import 'package:student_fin_os/l10n/app_localizations.dart';
-import 'package:student_fin_os/models/account.dart';
 import 'package:student_fin_os/models/finance_transaction.dart';
+import 'package:student_fin_os/models/finance_enums.dart';
 import 'package:student_fin_os/providers/dashboard_providers.dart';
+import 'package:student_fin_os/features/dashboard/ui/transaction_details_sheet.dart';
+import 'package:student_fin_os/providers/auth_providers.dart';
+import 'package:student_fin_os/providers/firebase_providers.dart';
+import 'package:student_fin_os/core/utils/brand_styles.dart';
+import 'package:student_fin_os/core/utils/dummy_data.dart';
+import 'package:student_fin_os/features/dashboard/ui/spending_modules_screen.dart';
+import 'package:student_fin_os/features/assistant/ui/chat_assistant_screen.dart';
+import 'package:uuid/uuid.dart';
 
-class DashboardScreen extends ConsumerWidget {
+class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends ConsumerState<DashboardScreen> {
+  bool _isSeeding = false;
+  bool _isBalanceVisible = true;
+
+  Future<void> _injectDummyTransactions() async {
+    final userId = ref.read(currentUserIdProvider);
+    if (userId == null) return;
+    final txService = ref.read(transactionServiceProvider);
+    final accountService = ref.read(accountServiceProvider);
+    
+    final accounts = await accountService.watchAccounts(userId).first;
+    if (accounts.isEmpty) return;
+
+    setState(() => _isSeeding = true);
+
+    final String accountId = accounts.first.id;
+    final now = DateTime.now();
+    final uid = const Uuid();
+
+    final List<Map<String, dynamic>> dummies = generateDummyTransactions();
+
+    for (int i = 0; i < dummies.length; i++) {
+      final d = dummies[i];
+      final isExp = d['isIncome'] != true;
+      final tx = FinanceTransaction(
+        id: uid.v4(),
+        userId: userId,
+        accountId: accountId,
+        title: d['title'],
+        amount: d['amount'],
+        type: isExp ? TransactionType.expense : TransactionType.income,
+        category: d['cat'],
+        transactionAt: now.subtract(Duration(days: i)),
+        createdAt: now,
+        updatedAt: now,
+        source: d['src'],
+        channel: 'upi',
+      );
+      await txService.createTransaction(tx);
+    }
+
+    setState(() => _isSeeding = false);
+  }
+
+
+
+  @override
+  Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context)!;
     final snapshot = ref.watch(dashboardSnapshotProvider);
-    final accountsAsync = ref.watch(accountsProvider);
     final List<FinanceTransaction> txList = snapshot.unifiedTransactions;
-    final UnifiedPlatformSummary summary = ref.watch(unifiedPlatformSummaryProvider);
-    final List<Account> accountList = accountsAsync.value ?? const <Account>[];
-    final Map<String, Account> accountById = <String, Account>{
-      for (final Account account in accountList) account.id: account,
-    };
-    final List<String> sourceLabels = accountList
-        .map((Account account) => account.provider ?? account.accountType.toUpperCase())
-        .toSet()
-        .toList();
 
     return SafeArea(
       child: CustomScrollView(
@@ -39,113 +86,6 @@ class DashboardScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: Text(
-                          l10n.dashboardUnifiedPlatform,
-                          style: Theme.of(context)
-                              .textTheme
-                              .headlineSmall
-                              ?.copyWith(fontWeight: FontWeight.w800),
-                        ),
-                      ),
-                      IconButton.outlined(
-                        onPressed: () => context.go('/app/profile'),
-                        tooltip: l10n.profile,
-                        icon: const Icon(Icons.person_outline),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    l10n.dashboardOneCleanView,
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: 12),
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(14),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Row(
-                            children: <Widget>[
-                              Expanded(
-                                child: Text(
-                                  l10n.dashboardConnectedToFeed,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleSmall
-                                      ?.copyWith(fontWeight: FontWeight.w700),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
-                            l10n.dashboardAccountsTransactions(
-                              summary.totalAccounts,
-                              summary.totalTransactions,
-                            ),
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            l10n.dashboardLiveUpdates,
-                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                  color: Theme.of(context).colorScheme.primary,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                          ),
-                          const SizedBox(height: 8),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: sourceLabels.isEmpty
-                                ? <Widget>[
-                                    _sourceChip(context, label: l10n.dashboardNoSourcesYet),
-                                  ]
-                                : sourceLabels
-                                    .map((String source) => _sourceChip(context, label: source))
-                                    .toList(),
-                          ),
-                          const SizedBox(height: 10),
-                          Row(
-                            children: <Widget>[
-                              Expanded(
-                                child: _platformTile(
-                                  context,
-                                  icon: Icons.account_balance,
-                                  title: l10n.bank,
-                                  value: CurrencyFormatter.inr(summary.bankBalance),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: _platformTile(
-                                  context,
-                                  icon: Icons.qr_code_2,
-                                  title: l10n.upi,
-                                  value: CurrencyFormatter.inr(summary.upiBalance),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: _platformTile(
-                                  context,
-                                  icon: Icons.payments,
-                                  title: l10n.cash,
-                                  value: CurrencyFormatter.inr(summary.cashBalance),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(16),
@@ -159,12 +99,25 @@ class DashboardScreen extends ConsumerWidget {
                       children: <Widget>[
                         Text(l10n.totalBalance, style: Theme.of(context).textTheme.bodyMedium),
                         const SizedBox(height: 4),
-                        Text(
-                          CurrencyFormatter.inr(snapshot.totalBalance),
-                          style: Theme.of(context)
-                              .textTheme
-                              .headlineMedium
-                              ?.copyWith(fontWeight: FontWeight.w800),
+                        Row(
+                          children: [
+                            Text(
+                              _isBalanceVisible ? CurrencyFormatter.inr(snapshot.totalBalance) : '••••••',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .headlineMedium
+                                  ?.copyWith(fontWeight: FontWeight.w800),
+                            ),
+                            const SizedBox(width: 8),
+                            IconButton(
+                              icon: Icon(_isBalanceVisible ? Icons.visibility : Icons.visibility_off, color: Colors.grey),
+                              onPressed: () {
+                                setState(() {
+                                  _isBalanceVisible = !_isBalanceVisible;
+                                });
+                              },
+                            )
+                          ],
                         ),
                         const SizedBox(height: 12),
                         Row(
@@ -206,55 +159,177 @@ class DashboardScreen extends ConsumerWidget {
                     childAspectRatio: 1.38,
                     children: <Widget>[
                       MetricCard(
-                        label: l10n.totalBalance,
-                        value: CurrencyFormatter.inr(snapshot.totalBalance),
+                        label: 'Total Saved',
+                        value: CurrencyFormatter.inr(snapshot.totalSavings),
                         gradient: const <Color>[Color(0xFF8ABF9E), Color(0xFF68A57F)],
+                        suggestionIcon: Icons.trending_up,
+                        suggestionText: 'Good progress',
+                        suggestionColor: Colors.green,
                       ),
                       MetricCard(
                         label: l10n.safeToSpend,
                         value: CurrencyFormatter.inr(snapshot.safeToSpend),
                         gradient: const <Color>[Color(0xFF8CB6D9), Color(0xFF6A9BC8)],
+                        suggestionIcon: Icons.check_circle_outline,
+                        suggestionText: 'Stress-free limit',
+                        suggestionColor: Colors.blue,
                       ),
                       MetricCard(
                         label: l10n.weeklySpend,
                         value: CurrencyFormatter.inr(snapshot.weeklySpend),
                         gradient: const <Color>[Color(0xFFC6B4DF), Color(0xFFAA93CE)],
+                        suggestionIcon: Icons.insights,
+                        suggestionText: 'Track it closely',
+                        suggestionColor: Colors.purple,
                       ),
                       MetricCard(
                         label: l10n.burnRatePerDay,
                         value: CurrencyFormatter.inr(snapshot.burnRate),
                         gradient: const <Color>[Color(0xFFE8C59A), Color(0xFFD9AD74)],
+                        suggestionIcon: Icons.warning_amber_rounded,
+                        suggestionText: 'Keep it low',
+                        suggestionColor: Colors.orange,
                       ),
                     ],
                   ),
                   const SizedBox(height: 18),
-                  SectionHeader(
-                    title: l10n.smartGuidance,
-                    subtitle: l10n.smartGuidanceSubtitle,
+                  const SectionHeader(
+                    title: 'AI Insights & Strategy',
+                    subtitle: 'Smart options to grow your wealth instead of spending randomly.',
                   ),
                   const SizedBox(height: 10),
+                  SizedBox(
+                    height: 140,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      children: <Widget>[
+                        _AiStrategyCard(
+                          icon: Icons.pie_chart_outline,
+                          title: 'Budget Options',
+                          description: 'Use the 50/30/20 rule to stop random spending.',
+                          color: Colors.blueAccent,
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const ChatAssistantScreen(
+                                  initialMessage: 'Can we discuss setting up a 50/30/20 budget based on my recent spending?',
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(width: 12),
+                        _AiStrategyCard(
+                          icon: Icons.savings_outlined,
+                          title: 'Saving Options',
+                          description: 'Automate 10% of income directly to an emergency fund.',
+                          color: Colors.green,
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const ChatAssistantScreen(
+                                  initialMessage: 'How can I automate 10% of my income into an emergency fund? What are the best options?',
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(width: 12),
+                        _AiStrategyCard(
+                          icon: Icons.trending_up,
+                          title: 'Investing',
+                          description: 'Start SIPs in Index Funds to beat inflation.',
+                          color: Colors.deepPurpleAccent,
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const ChatAssistantScreen(
+                                  initialMessage: 'I want to start investing in Index Funds through SIPs to beat inflation. Can you guide me based on my balance?',
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  InkWell(
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const LearningModulesScreen(),
+                        ),
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Theme.of(context).colorScheme.primary,
+                            Theme.of(context).colorScheme.secondary,
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.school,
+                            size: 32,
+                            color: Theme.of(context).colorScheme.onPrimary,
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Smart Spending Hub',
+                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                        color: Theme.of(context).colorScheme.onPrimary,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Learn platform hacks & save money on Amazon, Zomato, Uber & 20+ more.',
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                        color: Theme.of(context).colorScheme.onPrimary.withValues(alpha: 0.9),
+                                      ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Icon(
+                            Icons.arrow_forward_ios,
+                            size: 16,
+                            color: Theme.of(context).colorScheme.onPrimary,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: <Widget>[
-                      _GuidanceTipItem(
-                        icon: Icons.shield_outlined,
-                        label: l10n.tipAtmSafety,
-                        tip: l10n.tipAtmSafetyBody,
-                      ),
-                      _GuidanceTipItem(
-                        icon: Icons.credit_card,
-                        label: l10n.tipCreditScore,
-                        tip: l10n.tipCreditScoreBody,
-                      ),
-                      _GuidanceTipItem(
-                        icon: Icons.savings_outlined,
-                        label: l10n.tipBudgeting,
-                        tip: l10n.tipBudgetingBody,
-                      ),
-                      _GuidanceTipItem(
-                        icon: Icons.trending_up,
-                        label: l10n.tipInvesting,
-                        tip: l10n.tipInvestingBody,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.info_outline, size: 16, color: Theme.of(context).colorScheme.secondary),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Actively using these hacks will lower your weekly burn rate and dynamically update AI predictions across insights & savings.',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                fontStyle: FontStyle.italic,
+                              ),
+                        ),
                       ),
                     ],
                   ),
@@ -267,48 +342,6 @@ class DashboardScreen extends ConsumerWidget {
                   SizedBox(
                     height: 110,
                     child: _topSpendingsRow(context, snapshot.categoryBreakdown),
-                  ),
-                  const SizedBox(height: 18),
-                  SectionHeader(
-                    title: l10n.connectedAccounts,
-                    subtitle: l10n.connectedAccountsSubtitle,
-                  ),
-                  const SizedBox(height: 10),
-                  accountsAsync.when(
-                    data: (List<Account> accounts) {
-                      if (accounts.isEmpty) {
-                        return EmptyState(
-                          title: l10n.noAccountsYet,
-                          message: l10n.noAccountsYetBody,
-                          icon: Icons.account_balance_wallet,
-                        );
-                      }
-                      return Column(
-                        children: accounts.map((Account item) {
-                          return Card(
-                            margin: const EdgeInsets.only(bottom: 8),
-                            child: ListTile(
-                              leading: CircleAvatar(
-                                child: Icon(_iconForAccountType(item.accountType)),
-                              ),
-                              title: Text(item.name),
-                              subtitle: Text(
-                                '${item.provider ?? l10n.wallet} • ${item.accountType.toUpperCase()}',
-                              ),
-                              trailing: Text(
-                                CurrencyFormatter.inr(item.balance),
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleSmall
-                                    ?.copyWith(fontWeight: FontWeight.w700),
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      );
-                    },
-                    loading: () => const Center(child: CircularProgressIndicator()),
-                    error: (Object error, StackTrace stackTrace) => Text('${l10n.errorPrefix}: $error'),
                   ),
                   const SizedBox(height: 18),
                   SectionHeader(
@@ -427,9 +460,21 @@ class DashboardScreen extends ConsumerWidget {
                           ),
                   ),
                   const SizedBox(height: 18),
-                  SectionHeader(
-                    title: l10n.recentActivity,
-                    subtitle: l10n.latestTransactions,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: SectionHeader(
+                          title: l10n.recentActivity,
+                          subtitle: l10n.latestTransactions,
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: _isSeeding ? null : _injectDummyTransactions,
+                        icon: _isSeeding ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.add_box_outlined, color: Colors.blueGrey),
+                        tooltip: 'Add Dummy Transactions',
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 8),
                   if (txList.isEmpty)
@@ -439,22 +484,58 @@ class DashboardScreen extends ConsumerWidget {
                       icon: Icons.receipt_long,
                     )
                   else
-                    ...txList.take(6).map((FinanceTransaction tx) {
+                    ...txList.take(6).toList().asMap().entries.map((entry) {
+                      final FinanceTransaction tx = entry.value;
+                      final int trueIndex = entry.key;
+                      
+                      final brandColor = BrandStyles.getColor(tx.title);
+                      final brandIcon = BrandStyles.getIcon(tx.title, tx.category);
+
                       return Card(
                         margin: const EdgeInsets.only(bottom: 8),
                         child: ListTile(
-                          leading: Icon(
-                            tx.isExpense ? Icons.south_west : Icons.north_east,
-                            color: tx.isExpense
-                                ? Theme.of(context).colorScheme.secondary
-                                : Theme.of(context).colorScheme.primary,
+                          onTap: () {
+                            showModalBottomSheet(
+                              context: context,
+                              isScrollControlled: true,
+                              backgroundColor: Colors.transparent,
+                              builder: (ctx) => TransactionDetailsSheet(
+                                transactions: txList.take(6).toList(),
+                                initialIndex: trueIndex,
+                              )
+                            );
+                          },
+                          leading: CircleAvatar(
+                            backgroundColor: brandColor.withValues(alpha: 0.15),
+                            child: Icon(brandIcon, color: brandColor, size: 20),
                           ),
-                          title: Text(tx.title),
+                          title: Text(tx.title, style: const TextStyle(fontWeight: FontWeight.w600)),
                           subtitle: Text(
-                            '${tx.category} • ${_platformLabelForTransaction(tx, accountById)}',
+                            '${tx.category.toUpperCase()} • ${tx.source.toUpperCase()}',
+                            style: const TextStyle(fontSize: 12),
                           ),
-                          trailing: Text(
-                            '${tx.isExpense ? '-' : '+'}${CurrencyFormatter.inr(tx.amount)}',
+                          trailing: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                '${tx.isExpense ? '-' : '+'}${CurrencyFormatter.inr(tx.amount)}',
+                                style: TextStyle(
+                                  color: tx.isExpense
+                                      ? Theme.of(context).colorScheme.error
+                                      : Colors.green.shade700,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Icon(
+                                tx.isExpense ? Icons.south_west : Icons.north_east,
+                                size: 12,
+                                color: tx.isExpense
+                                    ? Theme.of(context).colorScheme.error
+                                    : Colors.green.shade700,
+                              ),
+                            ],
                           ),
                         ),
                       );
@@ -548,18 +629,6 @@ class DashboardScreen extends ConsumerWidget {
     }).toList();
   }
 
-  IconData _iconForAccountType(String accountType) {
-    switch (accountType.toLowerCase()) {
-      case 'bank':
-        return Icons.account_balance;
-      case 'upi':
-        return Icons.qr_code_2;
-      case 'cash':
-      default:
-        return Icons.payments;
-    }
-  }
-
   Widget _deltaItem(
     BuildContext context, {
     required IconData icon,
@@ -586,48 +655,6 @@ class DashboardScreen extends ConsumerWidget {
           ],
         ),
       ],
-    );
-  }
-
-  Widget _platformTile(
-    BuildContext context, {
-    required IconData icon,
-    required String title,
-    required String value,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Icon(icon, size: 17),
-          const SizedBox(height: 6),
-          Text(title, style: Theme.of(context).textTheme.labelSmall),
-          const SizedBox(height: 2),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _sourceChip(BuildContext context, {required String label}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w700),
-      ),
     );
   }
 
@@ -693,58 +720,81 @@ class DashboardScreen extends ConsumerWidget {
     }
     return Icons.local_offer_outlined;
   }
-
-  String _platformLabelForTransaction(
-    FinanceTransaction tx,
-    Map<String, Account> accountById,
-  ) {
-    final Account? account = accountById[tx.accountId];
-    if (account == null) {
-      return tx.channel.toUpperCase();
-    }
-    return '${account.provider ?? account.accountType.toUpperCase()} ${account.accountType.toUpperCase()}';
-  }
 }
 
-class _GuidanceTipItem extends StatelessWidget {
-  const _GuidanceTipItem({
+
+class _AiStrategyCard extends StatelessWidget {
+  const _AiStrategyCard({
     required this.icon,
-    required this.label,
-    required this.tip,
+    required this.title,
+    required this.description,
+    required this.color,
+    required this.onTap,
   });
 
   final IconData icon;
-  final String label;
-  final String tip;
+  final String title;
+  final String description;
+  final Color color;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      borderRadius: BorderRadius.circular(10),
-      onTap: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(tip)),
-        );
-      },
-      child: SizedBox(
-        width: 78,
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        width: 220,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
+        ),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            CircleAvatar(
-              radius: 20,
-              backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-              child: Icon(icon),
+            Row(
+              children: <Widget>[
+                Icon(icon, color: color),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: color,
+                        ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 6),
-            Text(
-              label,
-              style: Theme.of(context).textTheme.labelSmall,
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
+            const SizedBox(height: 8),
+            Expanded(
+              child: Text(
+                description,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: <Widget>[
+                Text(
+                  'Explore AI Ideas',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(   
+                        color: color,
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                const SizedBox(width: 4),
+                Icon(Icons.arrow_forward, size: 14, color: color),
+              ],
             ),
           ],
         ),
+
       ),
     );
   }

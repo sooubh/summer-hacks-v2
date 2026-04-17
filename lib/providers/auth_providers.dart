@@ -10,6 +10,15 @@ final currentUserIdProvider = Provider<String?>((ref) {
   return ref.watch(authStateProvider).value?.uid;
 });
 
+final starterDataBootstrapProvider = FutureProvider<void>((ref) async {
+  final String? userId = ref.watch(currentUserIdProvider);
+  if (userId == null || userId.isEmpty) {
+    return;
+  }
+
+  await ref.watch(mockBankServiceProvider).seedStarterData(userId);
+});
+
 class AuthController extends AsyncNotifier<void> {
   @override
   Future<void> build() async {}

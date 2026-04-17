@@ -85,7 +85,9 @@ final dashboardSnapshotProvider = Provider<DashboardSnapshot>((ref) {
   }
 
   double monthlyGoalContribution = 0;
+  double totalSavings = 0;
   for (final SavingsGoal goal in goals) {
+    totalSavings += goal.savedAmount;
     if (goal.status == GoalStatus.active) {
       monthlyGoalContribution +=
           ref.watch(savingsServiceProvider).recommendedMonthlyContribution(goal);
@@ -103,6 +105,7 @@ final dashboardSnapshotProvider = Provider<DashboardSnapshot>((ref) {
 
   return DashboardSnapshot(
     totalBalance: unified.totalBalance,
+    totalSavings: totalSavings,
     weeklySpend: weeklySpend,
     monthlySpend: monthlySpend,
     burnRate: burnRate,
