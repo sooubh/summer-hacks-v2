@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "106956907630",
+    "project_id": "summerhacks7",
+    "storage_bucket": "summerhacks7.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:106956907630:android:acd79e3d8c3be63da7327f",
+        "android_client_info": {
+          "package_name": "com.example.summerhack"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDrfqDW1ySaSTuiNpbWF5r0fWwouS2rYB0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

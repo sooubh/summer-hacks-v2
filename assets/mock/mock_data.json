@@ -1,0 +1,53 @@
+{
+  "accounts": [
+    {
+      "name": "SBI Savings",
+      "type": "bank",
+      "provider": "SBI",
+      "balance": 4200
+    },
+    {
+      "name": "PhonePe Wallet",
+      "type": "upi",
+      "provider": "PhonePe",
+      "balance": 1300
+    },
+    {
+      "name": "Cash in Hand",
+      "type": "cash",
+      "provider": "Wallet",
+      "balance": 650
+    }
+  ],
+  "transactions": [
+    {
+      "title": "Monthly stipend",
+      "amount": 5500,
+      "type": "income",
+      "category": "stipend",
+      "source": "bank_transfer"
+    },
+    {
+      "title": "Mess bill",
+      "amount": 1200,
+      "type": "expense",
+      "category": "food",
+      "source": "upi"
+    },
+    {
+      "title": "Freelance payout",
+      "amount": 3000,
+      "type": "income",
+      "category": "freelance",
+      "source": "bank_transfer"
+    }
+  ],
+  "savingsGoals": [
+    {
+      "title": "Emergency fund",
+      "targetAmount": 10000,
+      "savedAmount": 2500,
+      "deadlineDays": 120
+    }
+  ]
+}

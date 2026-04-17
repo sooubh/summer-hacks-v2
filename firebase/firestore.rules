@@ -1,0 +1,177 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function owner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function immutableUserId(userId) {
+      return request.resource.data.userId == userId &&
+        resource.data.userId == userId;
+    }
+
+    function isValidAccountType(type) {
+      return type in ['bank', 'upi', 'cash'];
+    }
+
+    function isValidTxnType(type) {
+      return type in ['income', 'expense', 'transfer', 'splitSettlement'];
+    }
+
+    function isValidGoalStatus(status) {
+      return status in ['active', 'paused', 'achieved'];
+    }
+
+    function isValidSplitStatus(status) {
+      return status in ['pending', 'partial', 'settled'];
+    }
+
+    function isValidInsightSeverity(level) {
+      return level in ['info', 'warning', 'critical'];
+    }
+
+    match /users/{userId} {
+      allow read: if owner(userId);
+      allow create: if owner(userId);
+      allow update: if owner(userId);
+      allow delete: if false;
+
+      match /accounts/{accountId} {
+        allow read: if owner(userId);
+        allow create: if owner(userId)
+          && request.resource.data.userId == userId
+          && request.resource.data.name is string
+          && isValidAccountType(request.resource.data.type)
+          && request.resource.data.balance is number
+          && request.resource.data.isActive is bool;
+        allow update: if owner(userId)
+          && immutableUserId(userId)
+          && request.resource.data.name is string
+          && isValidAccountType(request.resource.data.type)
+          && request.resource.data.balance is number
+          && request.resource.data.isActive is bool;
+        allow delete: if owner(userId);
+      }
+
+      match /transactions/{transactionId} {
+        allow read: if owner(userId);
+        allow create: if owner(userId)
+          && request.resource.data.userId == userId
+          && request.resource.data.accountId is string
+          && request.resource.data.title is string
+          && request.resource.data.amount is number
+          && request.resource.data.amount > 0
+          && isValidTxnType(request.resource.data.type)
+          && request.resource.data.category is string
+          && request.resource.data.transactionAt is timestamp;
+        allow update: if owner(userId)
+          && immutableUserId(userId)
+          && request.resource.data.accountId is string
+          && request.resource.data.title is string
+          && request.resource.data.amount is number
+          && request.resource.data.amount > 0
+          && isValidTxnType(request.resource.data.type)
+          && request.resource.data.category is string
+          && request.resource.data.transactionAt is timestamp;
+        allow delete: if owner(userId);
+      }
+
+      match /split_groups/{groupId} {
+        allow read: if owner(userId);
+        allow create: if owner(userId)
+          && request.resource.data.ownerId == userId
+          && request.resource.data.name is string
+          && request.resource.data.memberIds is list;
+        allow update: if owner(userId)
+          && resource.data.ownerId == userId
+          && request.resource.data.ownerId == userId
+          && request.resource.data.name is string
+          && request.resource.data.memberIds is list;
+        allow delete: if owner(userId);
+      }
+
+      match /split_expenses/{expenseId} {
+        allow read: if owner(userId);
+        allow create: if owner(userId)
+          && request.resource.data.groupId is string
+          && request.resource.data.createdBy == userId
+          && request.resource.data.title is string
+          && request.resource.data.totalAmount is number
+          && request.resource.data.totalAmount > 0
+          && request.resource.data.paidBy is string
+          && request.resource.data.owedBy is map
+          && isValidSplitStatus(request.resource.data.status)
+          && request.resource.data.expenseAt is timestamp;
+        allow update: if owner(userId)
+          && request.resource.data.createdBy == resource.data.createdBy
+          && request.resource.data.groupId == resource.data.groupId
+          && request.resource.data.title is string
+          && request.resource.data.totalAmount is number
+          && request.resource.data.totalAmount > 0
+          && request.resource.data.paidBy is string
+          && request.resource.data.owedBy is map
+          && isValidSplitStatus(request.resource.data.status)
+          && request.resource.data.expenseAt is timestamp;
+        allow delete: if owner(userId);
+      }
+
+      match /savings_goals/{goalId} {
+        allow read: if owner(userId);
+        allow create: if owner(userId)
+          && request.resource.data.userId == userId
+          && request.resource.data.title is string
+          && request.resource.data.targetAmount is number
+          && request.resource.data.targetAmount > 0
+          && request.resource.data.savedAmount is number
+          && request.resource.data.savedAmount >= 0
+          && request.resource.data.deadline is timestamp
+          && isValidGoalStatus(request.resource.data.status);
+        allow update: if owner(userId)
+          && immutableUserId(userId)
+          && request.resource.data.title is string
+          && request.resource.data.targetAmount is number
+          && request.resource.data.targetAmount > 0
+          && request.resource.data.savedAmount is number
+          && request.resource.data.savedAmount >= 0
+          && request.resource.data.deadline is timestamp
+          && isValidGoalStatus(request.resource.data.status);
+        allow delete: if owner(userId);
+      }
+
+      match /insights/{insightId} {
+        allow read: if owner(userId);
+        allow create: if false;
+        allow update: if owner(userId)
+          && request.resource.data.userId == userId
+          && request.resource.data.title is string
+          && request.resource.data.message is string
+          && isValidInsightSeverity(request.resource.data.severity)
+          && request.resource.data.createdAt is timestamp
+          && request.resource.data.isRead is bool;
+        allow delete: if false;
+      }
+
+      match /notification_preferences/{settingId} {
+        allow read, write: if owner(userId);
+      }
+
+      match /notifications/{notificationId} {
+        allow read: if owner(userId);
+        allow create: if false;
+        allow update: if owner(userId)
+          && request.resource.data.keys().hasOnly(['isRead'])
+          && request.resource.data.isRead is bool;
+        allow delete: if false;
+      }
+    }
+
+    // OTP sessions are server-only; clients must use Callable Functions.
+    match /otpSessions/{sessionId} {
+      allow read, write: if false;
+    }
+  }
+}
