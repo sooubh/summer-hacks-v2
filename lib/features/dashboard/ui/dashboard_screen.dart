@@ -27,6 +27,29 @@ class DashboardScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
+                  Row(
+                    children: <Widget>[
+                      const CircleAvatar(
+                        radius: 22,
+                        child: Icon(Icons.person),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Purnima',
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleLarge
+                              ?.copyWith(fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                      IconButton.outlined(
+                        onPressed: () {},
+                        icon: const Icon(Icons.notifications_none),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(16),
@@ -43,34 +66,38 @@ class DashboardScreen extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
                         Text(
-                          'Financial Command Center',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleLarge
-                              ?.copyWith(fontWeight: FontWeight.w800),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'All accounts, spending trends, and transaction activity in one place.',
+                          'Total Balance',
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
+                        const SizedBox(height: 4),
+                        Text(
+                          CurrencyFormatter.inr(snapshot.totalBalance),
+                          style: Theme.of(context)
+                              .textTheme
+                              .headlineMedium
+                              ?.copyWith(fontWeight: FontWeight.w800),
+                        ),
                         const SizedBox(height: 12),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: <Widget>[
-                            _infoChip(
+                            _deltaItem(
                               context,
-                              icon: Icons.account_balance_wallet,
-                              label: 'Top category: ${snapshot.topCategory.toUpperCase()}',
+                              icon: Icons.arrow_upward,
+                              title: 'Income',
+                              value: CurrencyFormatter.inr(
+                                txList
+                                    .where((FinanceTransaction tx) => tx.isIncome)
+                                    .fold<double>(0, (double s, FinanceTransaction tx) => s + tx.amount),
+                              ),
+                              positive: true,
                             ),
-                            _infoChip(
+                            _deltaItem(
                               context,
-                              icon: snapshot.isMonthlySpendUp
-                                  ? Icons.trending_up
-                                  : Icons.trending_down,
-                              label:
-                                  '${snapshot.isMonthlySpendUp ? 'Up' : 'Down'} ${snapshot.monthlyTrendPercent.abs().toStringAsFixed(1)}% month-on-month',
+                              icon: Icons.arrow_downward,
+                              title: 'Spent',
+                              value: CurrencyFormatter.inr(snapshot.monthlySpend),
+                              positive: false,
                             ),
                           ],
                         ),
@@ -78,17 +105,45 @@ class DashboardScreen extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  Text(
-                    'Money cockpit',
-                    style: Theme.of(context)
-                        .textTheme
-                        .headlineSmall
-                        ?.copyWith(fontWeight: FontWeight.w700),
+                  Card(
+                    child: ListTile(
+                      leading: const CircleAvatar(child: Icon(Icons.mic_none)),
+                      title: const Text('Talk to FlowFi'),
+                      subtitle: const Text('Ask me anything about your finances.'),
+                      trailing: Icon(
+                        Icons.arrow_forward_ios,
+                        size: 14,
+                        color: Colors.white.withValues(alpha: 0.65),
+                      ),
+                    ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Your total spending pulse for this week.',
-                    style: Theme.of(context).textTheme.bodySmall,
+                  const SizedBox(height: 16),
+                  const SectionHeader(
+                    title: 'Smart Guidance',
+                    subtitle: 'Quick tools for financial awareness',
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: const <Widget>[
+                      _GuidanceItem(icon: Icons.shield_outlined, label: 'ATM Safety'),
+                      _GuidanceItem(icon: Icons.credit_card, label: 'Credit Score'),
+                      _GuidanceItem(icon: Icons.savings_outlined, label: 'Budgeting'),
+                      _GuidanceItem(icon: Icons.trending_up, label: 'Investing'),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  const SectionHeader(
+                    title: 'Top Spendings',
+                    subtitle: 'Most active categories',
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: 110,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      children: _topSpendingChips(snapshot.categoryBreakdown),
+                    ),
                   ),
                   const SizedBox(height: 16),
                   GridView.count(
@@ -123,7 +178,7 @@ class DashboardScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 18),
                   const SectionHeader(
-                    title: 'Connected balances',
+                    title: 'Unified Platform',
                     subtitle: 'Bank + UPI + cash unified',
                   ),
                   const SizedBox(height: 10),
@@ -277,7 +332,7 @@ class DashboardScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 18),
                   const SectionHeader(
-                    title: 'Recent transactions',
+                    title: 'Combined Activity',
                     subtitle: 'Latest 6 entries',
                   ),
                   const SizedBox(height: 8),
@@ -395,32 +450,6 @@ class DashboardScreen extends ConsumerWidget {
     }).toList();
   }
 
-  Widget _infoChip(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          Icon(icon, size: 15),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: Theme.of(context).textTheme.labelMedium,
-          ),
-        ],
-      ),
-    );
-  }
-
   IconData _iconForAccountType(String accountType) {
     switch (accountType.toLowerCase()) {
       case 'bank':
@@ -431,5 +460,103 @@ class DashboardScreen extends ConsumerWidget {
       default:
         return Icons.payments;
     }
+  }
+
+  Widget _deltaItem(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String value,
+    required bool positive,
+  }) {
+    return Row(
+      children: <Widget>[
+        CircleAvatar(
+          radius: 13,
+          backgroundColor: (positive ? Colors.green : Colors.red).withValues(alpha: 0.2),
+          child: Icon(icon, size: 14, color: positive ? Colors.greenAccent : Colors.redAccent),
+        ),
+        const SizedBox(width: 8),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(title, style: Theme.of(context).textTheme.bodySmall),
+            Text(
+              value,
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  List<Widget> _topSpendingChips(Map<String, double> categoryBreakdown) {
+    final List<MapEntry<String, double>> entries = categoryBreakdown.entries.toList()
+      ..sort((MapEntry<String, double> a, MapEntry<String, double> b) => b.value.compareTo(a.value));
+    final List<MapEntry<String, double>> top = entries.take(4).toList();
+
+    if (top.isEmpty) {
+      return <Widget>[
+        Card(
+          child: SizedBox(
+            width: 180,
+            child: Center(
+              child: Padding(
+                padding: EdgeInsets.all(12),
+                child: Text('No spending data yet'),
+              ),
+            ),
+          ),
+        ),
+      ];
+    }
+
+    return top.map((MapEntry<String, double> item) {
+      return Card(
+        margin: const EdgeInsets.only(right: 10),
+        child: SizedBox(
+          width: 140,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: <Widget>[
+                const Icon(Icons.local_offer_outlined),
+                const SizedBox(height: 6),
+                Text(
+                  item.key.toUpperCase(),
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 2),
+                Text(CurrencyFormatter.inr(item.value)),
+              ],
+            ),
+          ),
+        ),
+      );
+    }).toList();
+  }
+}
+
+class _GuidanceItem extends StatelessWidget {
+  const _GuidanceItem({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: <Widget>[
+        CircleAvatar(
+          radius: 20,
+          backgroundColor: Colors.white.withValues(alpha: 0.08),
+          child: Icon(icon),
+        ),
+        const SizedBox(height: 6),
+        Text(label, style: Theme.of(context).textTheme.labelSmall),
+      ],
+    );
   }
 }
