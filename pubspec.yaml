@@ -47,6 +47,7 @@ dependencies:
   collection: ^1.19.1
   speech_to_text: ^7.3.0
   flutter_tts: ^4.2.3
+  http: ^1.2.2
 
 dev_dependencies:
   flutter_test:

@@ -1,4 +1,6 @@
 class AiRuntimeConfig {
+  static const String apiKey = String.fromEnvironment('GEMINI_API_KEY');
+
   static const String chatFastModel = String.fromEnvironment(
     'GEMINI_CHAT_FAST_MODEL',
     defaultValue: 'models/gemini-2.5-flash',

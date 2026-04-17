@@ -21,7 +21,7 @@ final defaultAssistantPromptsProvider = Provider<List<String>>((ref) {
 });
 
 final assistantServiceProvider = Provider<AssistantService>((ref) {
-  return AssistantService(ref.watch(firebaseFunctionsProvider));
+  return AssistantService();
 });
 
 final assistantClientContextProvider = Provider<Map<String, dynamic>>((ref) {
