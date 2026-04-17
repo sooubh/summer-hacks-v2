@@ -1,15 +1,39 @@
 {
-  "firestore": {
-    "rules": "firebase/firestore.rules",
-    "indexes": "firebase/firestore.indexes.json"
-  },
-  "storage": {
-    "rules": "firebase/storage.rules"
-  },
-  "functions": [
-    {
-      "source": "functions",
-      "runtime": "nodejs20"
-    }
-  ]
+	"firestore": {
+		"rules": "firebase/firestore.rules",
+		"indexes": "firebase/firestore.indexes.json"
+	},
+	"storage": {
+		"rules": "firebase/storage.rules"
+	},
+	"functions": [
+		{
+			"source": "functions",
+			"runtime": "nodejs20"
+		}
+	],
+	"flutter": {
+		"platforms": {
+			"android": {
+				"buildConfigurations": {
+					".": {
+						"projectId": "summerhacks7",
+						"appId": "1:106956907630:android:acd79e3d8c3be63da7327f",
+						"fileOutput": "android/app/google-services.json"
+					}
+				}
+
+			},
+			"dart": {
+				"lib/firebase_options.dart": {
+					"projectId": "summerhacks7",
+					"configurations": {
+						"android": "1:106956907630:android:acd79e3d8c3be63da7327f",
+						"ios": "1:106956907630:ios:724dae5a83868ca2a7327f",
+						"web": "1:106956907630:web:0c78471ed39e0648a7327f"
+					}
+				}
+			}
+		}
+	}
 }

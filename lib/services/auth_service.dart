@@ -30,31 +30,70 @@ class AuthService {
   }
 
   Future<UserCredential> signInWithGoogle() async {
-    if (kIsWeb) {
-      final UserCredential credential =
-          await _auth.signInWithPopup(GoogleAuthProvider());
-      await _upsertUserProfile(credential.user);
-      return credential;
-    }
+    try {
+      if (kIsWeb) {
+        final UserCredential credential =
+            await _auth.signInWithPopup(GoogleAuthProvider());
+        await _upsertUserProfile(credential.user);
+        return credential;
+      }
 
-    final GoogleSignInAccount? account = await _googleSignIn.signIn();
-    if (account == null) {
+      final GoogleSignInAccount? account = await _googleSignIn.signIn();
+      if (account == null) {
+        throw FirebaseAuthException(
+          code: 'google-sign-in-cancelled',
+          message: 'Google sign-in was cancelled.',
+        );
+      }
+
+      final GoogleSignInAuthentication authData = await account.authentication;
+      final bool hasIdToken =
+          authData.idToken != null && authData.idToken!.isNotEmpty;
+      final bool hasAccessToken =
+          authData.accessToken != null && authData.accessToken!.isNotEmpty;
+
+      if (!hasIdToken && !hasAccessToken) {
+        throw FirebaseAuthException(
+          code: 'google-sign-in-token-missing',
+          message:
+              'Google Sign-In did not return OAuth tokens. Enable Google in Firebase Auth and add SHA fingerprints for com.example.summerhack.',
+        );
+      }
+
+      final OAuthCredential credential = GoogleAuthProvider.credential(
+        accessToken: authData.accessToken,
+        idToken: authData.idToken,
+      );
+
+      final UserCredential userCredential =
+          await _auth.signInWithCredential(credential);
+      await _upsertUserProfile(userCredential.user);
+      return userCredential;
+    } on FirebaseAuthException catch (error) {
       throw FirebaseAuthException(
-        code: 'google-sign-in-cancelled',
-        message: 'Google sign-in was cancelled.',
+        code: error.code,
+        message: _googleSignInErrorMessage(error),
       );
     }
+  }
 
-    final GoogleSignInAuthentication authData = await account.authentication;
-    final OAuthCredential credential = GoogleAuthProvider.credential(
-      accessToken: authData.accessToken,
-      idToken: authData.idToken,
-    );
-
-    final UserCredential userCredential =
-        await _auth.signInWithCredential(credential);
-    await _upsertUserProfile(userCredential.user);
-    return userCredential;
+  String _googleSignInErrorMessage(FirebaseAuthException error) {
+    switch (error.code) {
+      case 'google-sign-in-cancelled':
+        return 'Google sign-in was cancelled.';
+      case 'google-sign-in-token-missing':
+        return error.message ??
+            'Google Sign-In did not return tokens. Check Firebase Auth and SHA settings.';
+      case 'operation-not-allowed':
+        return 'Google sign-in is disabled in Firebase. Enable it in Firebase Console > Authentication > Sign-in method.';
+      case 'invalid-credential':
+      case 'invalid-idp-response':
+      case 'invalid-identity-token':
+      case 'invalid-oauth-client-id':
+        return 'Google credentials were rejected. Verify package name, SHA-1/SHA-256, and regenerated Firebase config files.';
+      default:
+        return error.message ?? 'Google sign-in failed. Please try again.';
+    }
   }
 
   Future<void> requestEmailOtp({required String email}) async {

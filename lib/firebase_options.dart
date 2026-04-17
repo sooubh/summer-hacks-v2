@@ -24,28 +24,29 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'REPLACE_WITH_WEB_API_KEY',
-    appId: 'REPLACE_WITH_WEB_APP_ID',
-    messagingSenderId: 'REPLACE_WITH_MESSAGING_SENDER_ID',
-    projectId: 'REPLACE_WITH_PROJECT_ID',
-    authDomain: 'REPLACE_WITH_AUTH_DOMAIN',
-    storageBucket: 'REPLACE_WITH_STORAGE_BUCKET',
+    apiKey: 'AIzaSyDuOBft8SLoFsmBlFbYPcy0AM_ytdvqwno',
+    appId: '1:106956907630:web:0c78471ed39e0648a7327f',
+    messagingSenderId: '106956907630',
+    projectId: 'summerhacks7',
+    authDomain: 'summerhacks7.firebaseapp.com',
+    storageBucket: 'summerhacks7.firebasestorage.app',
+    measurementId: 'G-HHH3M576DM',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'REPLACE_WITH_ANDROID_API_KEY',
-    appId: 'REPLACE_WITH_ANDROID_APP_ID',
-    messagingSenderId: 'REPLACE_WITH_MESSAGING_SENDER_ID',
-    projectId: 'REPLACE_WITH_PROJECT_ID',
-    storageBucket: 'REPLACE_WITH_STORAGE_BUCKET',
+    apiKey: 'AIzaSyDrfqDW1ySaSTuiNpbWF5r0fWwouS2rYB0',
+    appId: '1:106956907630:android:acd79e3d8c3be63da7327f',
+    messagingSenderId: '106956907630',
+    projectId: 'summerhacks7',
+    storageBucket: 'summerhacks7.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'REPLACE_WITH_IOS_API_KEY',
-    appId: 'REPLACE_WITH_IOS_APP_ID',
-    messagingSenderId: 'REPLACE_WITH_MESSAGING_SENDER_ID',
-    projectId: 'REPLACE_WITH_PROJECT_ID',
-    storageBucket: 'REPLACE_WITH_STORAGE_BUCKET',
+    apiKey: 'AIzaSyAW6P6P6K919km7Tneoy5f0f5mnDBPC8bI',
+    appId: '1:106956907630:ios:724dae5a83868ca2a7327f',
+    messagingSenderId: '106956907630',
+    projectId: 'summerhacks7',
+    storageBucket: 'summerhacks7.firebasestorage.app',
     iosBundleId: 'com.example.studentFinOs',
   );
 }

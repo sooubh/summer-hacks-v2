@@ -1,4 +1,4 @@
-package com.example.student_fin_os
+package com.example.summerhack
 
 import io.flutter.embedding.android.FlutterActivity
 

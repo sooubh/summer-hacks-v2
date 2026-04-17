@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:student_fin_os/providers/auth_providers.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -29,8 +30,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         AsyncValue<void> next) {
       next.whenOrNull(
         error: (Object error, StackTrace stackTrace) {
+          final String message;
+          if (error is FirebaseAuthException) {
+            message = error.message ?? 'Authentication failed.';
+          } else {
+            message = error.toString();
+          }
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(error.toString())),
+            SnackBar(content: Text(message)),
           );
         },
       );
