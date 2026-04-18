@@ -18,27 +18,35 @@ class AssistantService {
     required List<Map<String, String>> history,
   }) async {
     final String apiKey = _requireApiKey();
-    final List<String> candidates = _uniqueModelCandidates(<String>[
+    final String configuredVoiceModel = _normalizeLiveModel(
       AiRuntimeConfig.voiceModel,
-      'models/gemini-2.0-flash-live-001',
-      'models/gemini-live-2.5-flash-preview',
+    );
+    final List<String> candidates = _uniqueModelCandidates(<String>[
+      configuredVoiceModel,
+      'models/gemini-3.1-flash-live-preview',
+    ]);
+    final List<String> voiceCandidates = _uniqueNullableStrings(<String?>[
+      AiRuntimeConfig.liveVoiceName,
+      '',
     ]);
 
     Object? lastError;
     for (final String candidate in candidates) {
-      try {
-        return VoiceLiveSession.connect(
-          apiKey: apiKey,
-          model: candidate,
-          responseModalities: const <String>['AUDIO', 'TEXT'],
-          systemInstruction: _buildLiveSessionSystemInstruction(
-            clientContext: clientContext,
-            history: history,
-          ),
-          voiceName: AiRuntimeConfig.liveVoiceName,
-        );
-      } catch (error) {
-        lastError = error;
+      for (final String voiceCandidate in voiceCandidates) {
+        try {
+          return VoiceLiveSession.connect(
+            apiKey: apiKey,
+            model: candidate,
+            responseModalities: const <String>['AUDIO'],
+            systemInstruction: _buildLiveSessionSystemInstruction(
+              clientContext: clientContext,
+              history: history,
+            ),
+            voiceName: voiceCandidate,
+          );
+        } catch (error) {
+          lastError = error;
+        }
       }
     }
 
@@ -503,6 +511,31 @@ class AssistantService {
 
     return cleaned;
   }
+
+  List<String> _uniqueNullableStrings(List<String?> values) {
+    final Set<String> seen = <String>{};
+    final List<String> cleaned = <String>[];
+
+    for (final String? value in values) {
+      final String normalized = (value ?? '').trim();
+      if (seen.add(normalized)) {
+        cleaned.add(normalized);
+      }
+    }
+
+    return cleaned;
+  }
+
+  String _normalizeLiveModel(String rawModel) {
+    final String trimmed = rawModel.trim();
+    if (trimmed.isEmpty) {
+      return 'models/gemini-3.1-flash-live-preview';
+    }
+    if (trimmed.startsWith('models/')) {
+      return trimmed;
+    }
+    return 'models/$trimmed';
+  }
 }
 
 class VoiceLiveSession {
@@ -540,9 +573,14 @@ class VoiceLiveSession {
       voiceName: voiceName,
     );
 
-    session._sendSetup();
-    await session._waitForSetup();
-    return session;
+    try {
+      session._sendSetup();
+      await session._waitForSetup();
+      return session;
+    } catch (_) {
+      await session.close();
+      rethrow;
+    }
   }
 
   final WebSocketChannel _channel;
@@ -649,6 +687,8 @@ class VoiceLiveSession {
       };
     }
 
+    // Some voice names are region/preview-gated; omit speech config unless an
+    // explicit voice is configured to avoid setup-time 1011 failures.
     if (normalizedVoiceName.isNotEmpty) {
       generationConfig['speechConfig'] = <String, dynamic>{
         'voiceConfig': <String, dynamic>{
@@ -698,6 +738,16 @@ class VoiceLiveSession {
       return;
     }
 
+    final bool hasSessionTraffic =
+        payload.containsKey('serverContent') ||
+        payload.containsKey('server_content') ||
+        payload.containsKey('toolCall') ||
+        payload.containsKey('tool_call');
+    if (hasSessionTraffic && !_setupCompleter.isCompleted) {
+      _setupCompleter.complete();
+      _emit(VoiceLiveEvent.setupComplete());
+    }
+
     final Map<String, dynamic>? serverContent =
         _asMap(payload['serverContent']) ?? _asMap(payload['server_content']);
 
@@ -721,6 +771,18 @@ class VoiceLiveSession {
       if (delta.isNotEmpty) {
         _turnTextBuffer.write(delta);
         _emit(VoiceLiveEvent.textDelta(delta));
+      }
+    }
+
+    final Map<String, dynamic>? outputTranscription =
+        _asMap(serverContent['outputTranscription']) ??
+        _asMap(serverContent['output_transcription']);
+    if (outputTranscription != null) {
+      final dynamic text = outputTranscription['text'];
+      if (text is String && text.trim().isNotEmpty) {
+        _turnTextBuffer.clear();
+        _turnTextBuffer.write(text.trim());
+        _emit(VoiceLiveEvent.textDelta(text.trim()));
       }
     }
 

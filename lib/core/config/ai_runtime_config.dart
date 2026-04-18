@@ -12,7 +12,7 @@ class AiRuntimeConfig {
   );
   static const String _defineVoiceModel = String.fromEnvironment(
     'AI_VOICE_MODEL',
-    defaultValue: 'models/gemini-2.0-flash-live-001',
+    defaultValue: 'models/gemini-3.1-flash-live-preview',
   );
   static const String _defineLiveVoiceName = String.fromEnvironment(
     'AI_LIVE_VOICE_NAME',
@@ -25,6 +25,10 @@ class AiRuntimeConfig {
   static const String _defineLiveOutputSampleRate = String.fromEnvironment(
     'AI_LIVE_OUTPUT_SAMPLE_RATE',
     defaultValue: '24000',
+  );
+  static const String _defineEnableDeviceSpeechFallback = String.fromEnvironment(
+    'AI_ENABLE_DEVICE_SPEECH_FALLBACK',
+    defaultValue: 'false',
   );
 
   static String get apiKey => _readAny(<String>['AI_API_KEY', 'GEMINI_API_KEY'], _defineApiKey);
@@ -53,6 +57,12 @@ class AiRuntimeConfig {
         _defineLiveOutputSampleRate,
       );
 
+  static bool get enableDeviceSpeechFallback =>
+      _readBoolAny(
+        <String>['AI_ENABLE_DEVICE_SPEECH_FALLBACK', 'GEMINI_ENABLE_DEVICE_SPEECH_FALLBACK'],
+        _defineEnableDeviceSpeechFallback,
+      );
+
   static String _read(String key, String fallback) {
     final String? raw = dotenv.env[key];
     if (raw != null && raw.trim().isNotEmpty) {
@@ -74,5 +84,21 @@ class AiRuntimeConfig {
   static int _readIntAny(List<String> keys, String fallback) {
     final String value = _readAny(keys, fallback);
     return int.tryParse(value) ?? int.tryParse(fallback) ?? 16000;
+  }
+
+  static bool _readBoolAny(List<String> keys, String fallback) {
+    final String value = _readAny(keys, fallback);
+    return _parseBool(value) ?? _parseBool(fallback) ?? false;
+  }
+
+  static bool? _parseBool(String value) {
+    final String normalized = value.trim().toLowerCase();
+    if (normalized == 'true' || normalized == '1' || normalized == 'yes') {
+      return true;
+    }
+    if (normalized == 'false' || normalized == '0' || normalized == 'no') {
+      return false;
+    }
+    return null;
   }
 }

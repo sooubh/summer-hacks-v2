@@ -58,6 +58,8 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
   Timer? _reconnectTimer;
   final DateTime _sessionStartedAt = DateTime.now();
   final List<String> _debugEvents = <String>[];
+  final List<_VoiceDebugCodeEvent> _codedDebugEvents =
+      <_VoiceDebugCodeEvent>[];
   String? _lastLiveEventType;
   DateTime? _lastLiveEventAt;
   String? _lastReconnectReason;
@@ -71,8 +73,11 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
   bool _fallbackSpeaking = false;
   bool _fallbackSubmitting = false;
   String _fallbackTranscriptDraft = '';
+  final bool _allowDeviceSpeechFallback =
+      AiRuntimeConfig.enableDeviceSpeechFallback;
   final int _liveInputSampleRate = AiRuntimeConfig.liveInputSampleRate;
   int _liveOutputSampleRate = AiRuntimeConfig.liveOutputSampleRate;
+  DateTime? _suppressMicInputUntil;
   Timer? _micHealthCheckTimer;
   Timer? _fallbackAutoStopTimer;
 
@@ -165,7 +170,13 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
       await _pcmPlayer.openPlayer();
       _pcmPlayerReady = true;
       await _restartPcmPlayer(sampleRate: _liveOutputSampleRate);
-      await _initializeFallbackVoiceRuntime();
+      if (_allowDeviceSpeechFallback) {
+        await _initializeFallbackVoiceRuntime();
+      } else {
+        _appendDebugEvent(
+          'Device speech fallback disabled. Using Gemini Live WebSocket path.',
+        );
+      }
       _appendDebugEvent('Audio runtime initialized successfully.');
 
       if (mounted) {
@@ -356,6 +367,11 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
     if (!_speechReady) {
       await _initializeFallbackVoiceRuntime();
       if (!_speechReady) {
+        _appendDebugEvent(
+          'Voice fallback is not ready on this device.',
+          code: 'fallback_unavailable',
+          source: 'fallback_stt',
+        );
         ref
             .read(voiceAssistantControllerProvider.notifier)
             .setError(
@@ -419,6 +435,11 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
       });
     } catch (error) {
       _fallbackListening = false;
+      _appendDebugEvent(
+        'Could not start fallback listening: $error',
+        code: 'fallback_listen',
+        source: 'fallback_stt',
+      );
       controller.setError(
         'Could not start fallback listening: $error',
         code: 'fallback_listen',
@@ -549,7 +570,7 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
           ref
               .read(voiceAssistantControllerProvider.notifier)
               .setError(
-                'Live voice connection failed. Falling back to turn mode.',
+                'Live voice connection failed. Retrying Gemini Live WebSocket.',
                 code: 'connection_error',
               );
           ref
@@ -650,6 +671,8 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
           await _restartPcmPlayer(sampleRate: sampleRate);
         }
 
+        // Prevent speaker output from being re-ingested as user audio.
+        _extendMicUplinkPause(const Duration(milliseconds: 650));
         _enqueuePlayback(event.audioChunk!);
         controller.setStatus(VoiceAssistantStatus.speaking);
         break;
@@ -673,10 +696,10 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
         }
 
         _liveReplyBuffer.clear();
-        if (_micStreamActive && _playbackQueue.isEmpty) {
+        if (_micStreamActive && _playbackQueue.isEmpty && !_playbackQueueActive) {
           controller.setStatus(VoiceAssistantStatus.listening);
           controller.updateTranscript('Continuous voice mode is active.');
-        } else if (_playbackQueue.isEmpty && !_micStreamActive) {
+        } else if (_playbackQueue.isEmpty && !_playbackQueueActive && !_micStreamActive) {
           controller.setStatus(VoiceAssistantStatus.idle);
         }
         break;
@@ -685,6 +708,7 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
         _discardCurrentModelTurn = false;
         _liveReplyBuffer.clear();
         await _clearPlayback(immediate: true);
+        _extendMicUplinkPause(const Duration(milliseconds: 420));
         controller.clearStreamingReply();
         if (_micStreamActive) {
           controller.setStatus(VoiceAssistantStatus.listening);
@@ -730,7 +754,8 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
         await _clearPlayback(immediate: true);
         controller.setLiveSessionReady(false);
         controller.setError(
-          event.errorMessage ?? 'Live voice session failed. Using fallback mode.',
+          event.errorMessage ??
+              'Live voice session failed. Retrying Gemini Live WebSocket.',
           code: event.errorCode ?? event.errorStatus,
         );
         await _disconnectLiveSession(updateState: false);
@@ -832,6 +857,32 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
     unawaited(_drainPlaybackQueue());
   }
 
+  void _extendMicUplinkPause(Duration duration) {
+    final DateTime candidate = DateTime.now().add(duration);
+    final DateTime? activeUntil = _suppressMicInputUntil;
+    if (activeUntil == null || candidate.isAfter(activeUntil)) {
+      _suppressMicInputUntil = candidate;
+    }
+  }
+
+  bool _shouldSuppressMicUplink() {
+    if (_playbackQueueActive || _playbackQueue.isNotEmpty) {
+      return true;
+    }
+
+    final DateTime? activeUntil = _suppressMicInputUntil;
+    if (activeUntil == null) {
+      return false;
+    }
+
+    if (DateTime.now().isBefore(activeUntil)) {
+      return true;
+    }
+
+    _suppressMicInputUntil = null;
+    return false;
+  }
+
   Future<void> _drainPlaybackQueue() async {
     if (_playbackQueueActive) {
       return;
@@ -863,6 +914,7 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
     } finally {
       _playbackQueueActive = false;
       if (mounted && _playbackQueue.isEmpty) {
+        _extendMicUplinkPause(const Duration(milliseconds: 320));
         final VoiceAssistantController controller = ref.read(
           voiceAssistantControllerProvider.notifier,
         );
@@ -955,6 +1007,14 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
 
     final VoiceLiveSession? session = _liveSession;
     if (session == null) {
+      if (_liveSessionConnecting) {
+        _appendDebugEvent(
+          'Live session still connecting. Skipping reconnect scheduling.',
+        );
+        controller.setStatus(VoiceAssistantStatus.processing);
+        controller.updateTranscript('Connecting to Gemini Live WebSocket...');
+        return;
+      }
       _resumeMicAfterReconnect = true;
       _scheduleReconnect(reason: 'Live session not available for microphone start.');
       _appendDebugEvent(
@@ -972,6 +1032,7 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
 
     _discardCurrentModelTurn = false;
     _liveReplyBuffer.clear();
+    _suppressMicInputUntil = null;
     await _clearPlayback(immediate: false);
 
     final StreamController<Uint8List> micController =
@@ -979,6 +1040,10 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
     _micPcmController = micController;
     _micPcmSubscription = micController.stream.listen(
       (Uint8List chunk) {
+        if (_shouldSuppressMicUplink()) {
+          return;
+        }
+
         unawaited(
           session
               .sendRealtimeAudioChunk(
@@ -992,6 +1057,11 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
         if (!mounted) {
           return;
         }
+        _appendDebugEvent(
+          'Microphone stream failed: $error',
+          code: 'mic_stream',
+          source: 'mic_stream',
+        );
         ref
             .read(voiceAssistantControllerProvider.notifier)
             .setError('Microphone stream failed: $error', code: 'mic_stream');
@@ -1050,6 +1120,7 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
     }
 
     _micStreamActive = false;
+    _suppressMicInputUntil = null;
     _appendDebugEvent('Microphone stream stopped.');
 
     final StreamSubscription<Uint8List>? micSubscription = _micPcmSubscription;
@@ -1180,9 +1251,28 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
       return;
     }
 
-    if (!state.liveSessionReady && !_liveSessionConnecting) {
+    if (!state.liveSessionReady &&
+        !_liveSessionConnecting &&
+        _allowDeviceSpeechFallback) {
       _appendDebugEvent('Live mode unavailable. Starting fallback voice turn.');
       await _startFallbackSingleTurn();
+      return;
+    }
+
+    if (!state.liveSessionReady && !_liveSessionConnecting) {
+      _appendDebugEvent(
+        'Live mode not ready yet. Connecting Gemini Live WebSocket session.',
+      );
+    }
+
+    if (_liveSessionConnecting) {
+      ref
+          .read(voiceAssistantControllerProvider.notifier)
+          .setStatus(VoiceAssistantStatus.processing);
+      ref
+          .read(voiceAssistantControllerProvider.notifier)
+          .updateTranscript('Connecting to Gemini Live WebSocket...');
+      _appendDebugEvent('Live connection in progress. Waiting for setup complete.');
       return;
     }
 
@@ -1246,7 +1336,11 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
                     });
                   },
                   child: Text(
-                    state.liveSessionReady ? 'Live Mode' : 'Fallback Mode',
+                    state.liveSessionReady
+                        ? 'Live Mode'
+                        : (_allowDeviceSpeechFallback
+                              ? 'Fallback Mode'
+                              : 'Live Reconnecting'),
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(
                       color: state.liveSessionReady ? Colors.green : Colors.orange,
                       fontWeight: FontWeight.bold,
@@ -1469,6 +1563,8 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
         _appendDebugEvent(
           event.errorMessage ?? 'Live event error.',
           code: event.errorCode ?? event.errorStatus ?? 'live_error',
+          source: 'live_event',
+          status: event.errorStatus,
         );
         break;
       case VoiceLiveEventType.textDelta:
@@ -1477,15 +1573,38 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
     }
   }
 
-  void _appendDebugEvent(String message, {String? code}) {
+  void _appendDebugEvent(
+    String message, {
+    String? code,
+    String source = 'voice_bot',
+    String? status,
+  }) {
     final String timestamp = DateFormat('HH:mm:ss').format(DateTime.now());
+    final DateTime timestampUtc = DateTime.now().toUtc();
     final String normalizedCode = (code ?? '').trim();
+    final String normalizedStatus = (status ?? '').trim();
     final String line = normalizedCode.isEmpty
         ? '[$timestamp] $message'
         : '[$timestamp][$normalizedCode] $message';
     _debugEvents.insert(0, line);
     if (_debugEvents.length > 80) {
       _debugEvents.removeRange(80, _debugEvents.length);
+    }
+
+    if (normalizedCode.isNotEmpty) {
+      _codedDebugEvents.insert(
+        0,
+        _VoiceDebugCodeEvent(
+          timestampUtc: timestampUtc,
+          source: source,
+          code: normalizedCode,
+          status: normalizedStatus.isEmpty ? null : normalizedStatus,
+          message: message,
+        ),
+      );
+      if (_codedDebugEvents.length > 120) {
+        _codedDebugEvents.removeRange(120, _codedDebugEvents.length);
+      }
     }
 
     if (mounted && !_isDisposing) {
@@ -1502,12 +1621,19 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
     final String reconnectInfo = _lastReconnectAt == null
         ? 'none'
         : '${_formatTimestamp(_lastReconnectAt)} | ${_lastReconnectReason ?? 'unknown'}';
+    final List<_VoiceDebugCodeEvent> recentErrorCodes = _codedDebugEvents
+        .where((_) => true)
+        .take(20)
+        .toList(growable: false);
 
     final List<String> lines = <String>[
+      'report.version: voice-debug-v2',
+      'report.generatedAtUtc: ${DateTime.now().toUtc().toIso8601String()}',
       'platform: ${defaultTargetPlatform.name}',
       'uptime: $uptime',
       'state.status: ${state.status.name}',
       'state.liveSessionReady: ${state.liveSessionReady}',
+      'state.activeModel: ${state.activeModel ?? '-'}',
       'state.errorCode: ${state.errorCode ?? '-'}',
       'state.errorMessage: ${state.errorMessage ?? '-'}',
       'runtime.voiceReady: $_voiceReady',
@@ -1522,6 +1648,7 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
       'runtime.reconnectTimerActive: ${_reconnectTimer != null}',
       'runtime.lastReconnect: $reconnectInfo',
       'runtime.lastLiveEvent: $lastEvent',
+      'runtime.deviceSpeechFallbackEnabled: $_allowDeviceSpeechFallback',
       'runtime.micPermissionGranted: $_microphonePermissionGranted',
       'runtime.micPermissionState: $_microphonePermissionState',
       'config.apiKeyLoaded: ${AiRuntimeConfig.apiKey.trim().isNotEmpty}',
@@ -1529,6 +1656,13 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
       'config.voiceName: ${AiRuntimeConfig.liveVoiceName}',
       'config.inputSampleRate: $_liveInputSampleRate',
       'config.outputSampleRate: $_liveOutputSampleRate',
+      'codedEventCount: ${_codedDebugEvents.length}',
+      'recentErrorCodes:',
+      if (recentErrorCodes.isEmpty) '  (none)',
+      ...recentErrorCodes.map(
+        (_VoiceDebugCodeEvent entry) =>
+            '  [${entry.timestampUtc.toIso8601String()}] source=${entry.source}; code=${entry.code}; status=${entry.status ?? '-'}; message=${entry.message}',
+      ),
       'recentEvents:',
       ..._debugEvents.take(20).map((String line) => '  $line'),
     ];
@@ -1583,7 +1717,7 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
           style: Theme.of(context).textTheme.bodyMedium,
         ),
         subtitle: Text(
-          'Live: ${state.liveSessionReady} | reconnect: $_reconnectAttempt | mic: $_micStreamActive | permission: $_microphonePermissionState',
+          'Live: ${state.liveSessionReady} | err: ${state.errorCode ?? '-'} | reconnect: $_reconnectAttempt | mic: $_micStreamActive',
           style: Theme.of(context).textTheme.bodySmall,
         ),
         childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
@@ -1594,7 +1728,7 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
                 child: FilledButton.tonalIcon(
                   onPressed: () => _copyDebugSnapshot(state),
                   icon: const Icon(Icons.copy, size: 16),
-                  label: const Text('Copy report'),
+                  label: const Text('Copy detailed report'),
                 ),
               ),
               const SizedBox(width: 8),
@@ -1693,4 +1827,20 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
         return Theme.of(context).colorScheme.outline;
     }
   }
+}
+
+class _VoiceDebugCodeEvent {
+  const _VoiceDebugCodeEvent({
+    required this.timestampUtc,
+    required this.source,
+    required this.code,
+    required this.message,
+    this.status,
+  });
+
+  final DateTime timestampUtc;
+  final String source;
+  final String code;
+  final String message;
+  final String? status;
 }
