@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:student_fin_os/features/assistant/ui/chat_assistant_screen.dart';
 import 'package:student_fin_os/features/auth/ui/login_screen.dart';
+import 'package:student_fin_os/features/profile/ui/profile_settings_screen.dart';
 import 'package:student_fin_os/features/shell/ui/app_shell_screen.dart';
 import 'package:student_fin_os/providers/firebase_providers.dart';
 
@@ -17,6 +18,7 @@ class AppRoutes {
   static const String savings = '/app/savings';
   static const String insights = '/app/insights';
   static const String cashFlow = '/app/cashflow';
+  static const String profileSettings = '/app/profile';
   static const String chatAssistant = '/assistant/chat';
 
   static const List<String> appTabs = <String>[
@@ -50,6 +52,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: 'login',
         builder: (BuildContext context, GoRouterState state) =>
             const LoginScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.profileSettings,
+        name: 'profile-settings',
+        builder: (BuildContext context, GoRouterState state) {
+          return const ProfileSettingsScreen();
+        },
       ),
       GoRoute(
         path: '/app/:tab',

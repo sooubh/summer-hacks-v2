@@ -830,14 +830,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   ),
                   const SizedBox(height: 18),
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      Expanded(
-                        child: SectionHeader(
-                          title: l10n.recentActivity,
-                          subtitle: l10n.latestTransactions,
-                        ),
-                      ),
                       IconButton(
                         onPressed: _isSeeding ? null : _injectDummyTransactions,
                         icon: _isSeeding ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.add_box_outlined, color: Colors.blueGrey),
@@ -1829,12 +1823,6 @@ class _HomeDetailsSheet extends StatelessWidget {
           const SizedBox(height: 10),
           Row(
             children: <Widget>[
-              Text(
-                _sheetTitle(topic),
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-              ),
               const Spacer(),
               IconButton(
                 onPressed: () => Navigator.of(context).pop(),
@@ -1848,7 +1836,6 @@ class _HomeDetailsSheet extends StatelessWidget {
               children: <Widget>[
                 if (showTopic('overview')) ...<Widget>[
                   _DetailBlock(
-                    title: 'Overview',
                     child: Wrap(
                       spacing: 8,
                       runSpacing: 8,
@@ -1880,7 +1867,6 @@ class _HomeDetailsSheet extends StatelessWidget {
                 ],
                 if (showAll) ...<Widget>[
                   _DetailBlock(
-                    title: 'All Categories',
                     child: categories.isEmpty
                         ? const Text('No category data yet.')
                         : Column(
@@ -1906,7 +1892,6 @@ class _HomeDetailsSheet extends StatelessWidget {
                 ],
                 if (showTopic('savings')) ...<Widget>[
                   _DetailBlock(
-                    title: 'Savings History',
                     child: sortedGoals.isEmpty
                         ? const Text('No savings history found.')
                         : Column(
@@ -1937,7 +1922,6 @@ class _HomeDetailsSheet extends StatelessWidget {
                 ],
                 if (showTopic('burn_rate') || showAll) ...<Widget>[
                   _DetailBlock(
-                    title: 'Monthly Trend',
                     child: snapshot.monthlySpendEntries.isEmpty
                         ? const Text('Not enough monthly trend data yet.')
                         : Column(
@@ -1961,7 +1945,6 @@ class _HomeDetailsSheet extends StatelessWidget {
                 ],
                 if (showTopic('safe_to_spend') || showAll) ...<Widget>[
                   _DetailBlock(
-                    title: 'AI Spend Suggestions',
                     child: Column(
                       children: aiSuggestions.map((String tip) {
                         return ListTile(
@@ -1977,7 +1960,6 @@ class _HomeDetailsSheet extends StatelessWidget {
                 ],
                 if (showTopic('weekly_spend') || showAll) ...<Widget>[
                   _DetailBlock(
-                    title: 'Recent Transactions',
                     child: sectionTransactions.isEmpty
                         ? const Text('No transactions found.')
                         : Column(
@@ -2009,17 +1991,6 @@ class _HomeDetailsSheet extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  String _sheetTitle(String topic) {
-    return switch (topic) {
-      'overview' => 'Overview Details',
-      'savings' => 'Savings Details',
-      'safe_to_spend' => 'Safe To Spend Details',
-      'weekly_spend' => 'Weekly Spend Details',
-      'burn_rate' => 'Burn Rate Details',
-      _ => 'Dashboard Details',
-    };
   }
 
   List<String> _buildAiSpendSuggestions({
@@ -2105,11 +2076,9 @@ class _HomeDetailsSheet extends StatelessWidget {
 
 class _DetailBlock extends StatelessWidget {
   const _DetailBlock({
-    required this.title,
     required this.child,
   });
 
-  final String title;
   final Widget child;
 
   @override
@@ -2124,13 +2093,6 @@ class _DetailBlock extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text(
-            title,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-          ),
-          const SizedBox(height: 8),
           child,
         ],
       ),

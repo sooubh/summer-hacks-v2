@@ -170,7 +170,70 @@ class InsightsService {
       ));
     }
 
-    return insights;
+    final DateTime currentMonthStart = DateTime.utc(now.year, now.month, 1);
+    final List<FinanceTransaction> currentMonthTransactions = recentTransactions
+        .where((FinanceTransaction tx) {
+        return tx.transactionAt.isAfter(currentMonthStart) ||
+          tx.transactionAt.isAtSameMomentAs(currentMonthStart);
+        })
+        .toList(growable: false);
+
+    final double currentMonthIncome = _sumAmount(
+      currentMonthTransactions
+          .where((FinanceTransaction tx) => tx.type == TransactionType.income)
+          .toList(growable: false),
+    );
+    final double currentMonthExpense = _sumAmount(
+      currentMonthTransactions
+          .where((FinanceTransaction tx) => tx.type == TransactionType.expense)
+          .toList(growable: false),
+    );
+
+    if (currentMonthIncome > 0) {
+      final double monthlyNet = currentMonthIncome - currentMonthExpense;
+      if (monthlyNet > 0) {
+        final double suggestedSip = (monthlyNet * 0.2).clamp(500, monthlyNet).toDouble();
+        final double suggestedReserve =
+            (monthlyNet * 0.3).clamp(500, monthlyNet).toDouble();
+
+        insights.add(_build(
+          userId: userId,
+          title: 'Monthly surplus available',
+          message:
+              'You have a surplus of Rs ${monthlyNet.toStringAsFixed(0)} this month. A good split is SIP Rs ${suggestedSip.toStringAsFixed(0)} and reserve Rs ${suggestedReserve.toStringAsFixed(0)}.',
+          severity: InsightSeverity.info,
+        ));
+
+        insights.add(_build(
+          userId: userId,
+          title: 'SIP suggestion from your cashflow',
+          message:
+              'Based on your current month pattern, consider starting a SIP near Rs ${suggestedSip.toStringAsFixed(0)} and increase by 10% every 6 months.',
+          severity: InsightSeverity.info,
+        ));
+      } else {
+        insights.add(_build(
+          userId: userId,
+          title: 'No monthly surplus yet',
+          message:
+              'Current month spend is above or close to income. Reduce optional categories first, then start a small SIP plan.',
+          severity: InsightSeverity.warning,
+        ));
+      }
+    }
+
+    if (safeToSpend > 0) {
+      final double suggestedDailyCap = (safeToSpend / 7).clamp(50, safeToSpend).toDouble();
+      insights.add(_build(
+        userId: userId,
+        title: 'Weekly spending cap suggestion',
+        message:
+            'To stay safe this week, keep non-essential spend near Rs ${suggestedDailyCap.toStringAsFixed(0)} per day.',
+        severity: InsightSeverity.info,
+      ));
+    }
+
+    return insights.take(10).toList(growable: false);
   }
 
   AiInsight _build({
@@ -179,8 +242,16 @@ class InsightsService {
     required String message,
     required InsightSeverity severity,
   }) {
+    final String slug = title
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
+        .replaceAll(RegExp(r'_+'), '_')
+        .replaceAll(RegExp(r'^_|_$'), '');
+    final String stableId =
+      'rule_${severity.name}_${slug.isEmpty ? _uuid.v4() : slug}';
+
     return AiInsight(
-      id: _uuid.v4(),
+      id: stableId,
       userId: userId,
       title: title,
       message: message,

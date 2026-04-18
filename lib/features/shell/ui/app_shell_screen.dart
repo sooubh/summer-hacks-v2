@@ -223,7 +223,7 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
               tooltip: 'Profile',
               icon: const Icon(Icons.account_circle, size: 28),
               onPressed: () {
-                context.go('/app/profile');
+                context.push(AppRoutes.profileSettings);
               },
             );
           }

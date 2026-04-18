@@ -13,6 +13,23 @@ final insightsFeedProvider = StreamProvider.autoDispose<List<AiInsight>>((ref) {
   return ref.watch(insightsServiceProvider).watchInsights(userId);
 });
 
+final automatedInsightsProvider = Provider.autoDispose<List<AiInsight>>((ref) {
+  final String? userId = ref.watch(currentUserIdProvider);
+  if (userId == null) {
+    return const <AiInsight>[];
+  }
+
+  final transactions = ref.watch(transactionsProvider).value ?? const [];
+  final snapshot = ref.watch(dashboardSnapshotProvider);
+
+  return ref.read(insightsServiceProvider).generateRuleBasedInsights(
+        userId: userId,
+        recentTransactions: transactions,
+        totalBalance: snapshot.totalBalance,
+        safeToSpend: snapshot.safeToSpend,
+      );
+});
+
 class InsightsController extends AsyncNotifier<void> {
   @override
   Future<void> build() async {}

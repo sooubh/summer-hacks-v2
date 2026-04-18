@@ -144,14 +144,23 @@ service cloud.firestore {
 
       match /insights/{insightId} {
         allow read: if owner(userId);
-        allow create: if false;
-        allow update: if owner(userId)
+        allow create: if owner(userId)
           && request.resource.data.userId == userId
           && request.resource.data.title is string
           && request.resource.data.message is string
           && isValidInsightSeverity(request.resource.data.severity)
           && request.resource.data.createdAt is timestamp
-          && request.resource.data.isRead is bool;
+          && request.resource.data.isRead is bool
+          && request.resource.data.meta is map;
+        allow update: if owner(userId)
+          && request.resource.data.userId == resource.data.userId
+          && request.resource.data.userId == userId
+          && request.resource.data.title is string
+          && request.resource.data.message is string
+          && isValidInsightSeverity(request.resource.data.severity)
+          && request.resource.data.createdAt is timestamp
+          && request.resource.data.isRead is bool
+          && request.resource.data.meta is map;
         allow delete: if false;
       }
 
