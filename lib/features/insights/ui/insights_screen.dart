@@ -66,9 +66,9 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
             isScrollable: true,
             tabs: [
               Tab(text: 'Feed'),
-              Tab(text: 'Budget Options'),
-              Tab(text: 'Saving Options'),
-              Tab(text: 'Investing'),
+              Tab(text: 'Budget'),
+              Tab(text: 'Savings'),
+              Tab(text: 'Invest'),
             ],
           ),
         ),
@@ -192,7 +192,11 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                   color: _colorForSeverity(insight.severity),
                 ),
                 title: Text(insight.title),
-                subtitle: Text(insight.message),
+                  subtitle: Text(
+                    insight.message,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
               ),
             );
           }),
@@ -248,14 +252,20 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    Text(insight.message),
-                    const SizedBox(height: 8),
                     Text(
-                      _actionHint(insight.severity),
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.primary,
-                            fontWeight: FontWeight.w700,
-                          ),
+                      insight.message,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      children: <Widget>[
+                        _compactTag(
+                          context,
+                          _actionHint(insight.severity),
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -302,7 +312,7 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
       monthTransactions,
       5,
     );
-    final String narrative = _spendingNarrative(
+    final List<String> spendingBullets = _spendingBullets(
       monthIncome: monthIncome,
       monthExpense: monthExpense,
       forecastSpend: forecastSpend,
@@ -352,9 +362,12 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
         Card(
           child: Padding(
             padding: const EdgeInsets.all(14),
-            child: Text(
-              narrative,
-              style: Theme.of(context).textTheme.bodyMedium,
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: spendingBullets
+                  .map((String item) => _compactTag(context, item))
+                  .toList(growable: false),
             ),
           ),
         ),
@@ -472,6 +485,8 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                   'Current reserve: ${CurrencyFormatter.inr(currentReserve)}\n'
                   'Target (6 months expense): ${CurrencyFormatter.inr(emergencyTarget)}\n'
                   'Gap: ${CurrencyFormatter.inr(reserveGap)}',
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 10),
                 LinearProgressIndicator(value: reserveProgress),
@@ -481,6 +496,8 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                       ? 'Great. You have enough reserve to start higher SIP amounts safely.'
                       : 'Suggested reserve build amount: ${CurrencyFormatter.inr(suggestedMonthlyReserve)} per month.',
                   style: Theme.of(context).textTheme.bodySmall,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -541,7 +558,7 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
       annualReturn: _assumedAnnualReturn,
     );
 
-    final String narrative = _sipNarrative(
+    final List<String> sipBullets = _sipBullets(
       monthNet: monthNet,
       suggestedSipLow: suggestedSipLow,
       suggestedSipHigh: suggestedSipHigh,
@@ -575,6 +592,8 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                   'Income: ${CurrencyFormatter.inr(monthIncome)}\n'
                   'Spend: ${CurrencyFormatter.inr(monthExpense)}\n'
                   'Net: ${CurrencyFormatter.inr(monthNet)}',
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -582,6 +601,8 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                       ? 'You are currently cashflow-negative. Reduce spending first, then start SIP at a small amount.'
                       : 'Suggested SIP range from current cashflow: ${CurrencyFormatter.inr(suggestedSipLow)} to ${CurrencyFormatter.inr(suggestedSipHigh)} per month.',
                   style: Theme.of(context).textTheme.bodySmall,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -767,13 +788,38 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
         Card(
           child: Padding(
             padding: const EdgeInsets.all(14),
-            child: Text(
-              narrative,
-              style: Theme.of(context).textTheme.bodyMedium,
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: sipBullets
+                  .map((String item) => _compactTag(context, item))
+                  .toList(growable: false),
             ),
           ),
         ),
       ],
+    );
+  }
+
+  Widget _compactTag(
+    BuildContext context,
+    String text, {
+    Color? color,
+  }) {
+    final Color accent = color ?? Theme.of(context).colorScheme.secondary;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: accent.withValues(alpha: 0.28)),
+      ),
+      child: Text(
+        text,
+        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+      ),
     );
   }
 
@@ -958,30 +1004,26 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
     return '${category.substring(0, 8)}..';
   }
 
-  String _spendingNarrative({
+  List<String> _spendingBullets({
     required double monthIncome,
     required double monthExpense,
     required double forecastSpend,
     required double safeToSpend,
     required double monthlyTrendPercent,
   }) {
-    final String trendText = monthlyTrendPercent > 0
-        ? 'Spending is up by ${monthlyTrendPercent.toStringAsFixed(1)}% vs last month.'
-        : 'Spending is controlled at ${monthlyTrendPercent.abs().toStringAsFixed(1)}% lower than last month.';
-
-    final String balanceText = monthIncome >= monthExpense
-        ? 'You are within your monthly cashflow limit.'
-        : 'You are overspending this month and should trim discretionary categories.';
-
-    final String safeText = safeToSpend > 0
-        ? 'You can still spend about ${CurrencyFormatter.inr(safeToSpend)} safely.'
-        : 'Safe-to-spend is exhausted, so avoid fresh optional expenses.';
-
-    return '$trendText $balanceText At this pace, month-end spend may close near '
-        '${CurrencyFormatter.inr(forecastSpend)}. $safeText';
+    return <String>[
+      monthlyTrendPercent > 0
+          ? '+${monthlyTrendPercent.toStringAsFixed(1)}% vs last month'
+          : '-${monthlyTrendPercent.abs().toStringAsFixed(1)}% vs last month',
+      monthIncome >= monthExpense ? 'Within cashflow' : 'Above cashflow',
+      'Month-end est. ${CurrencyFormatter.inr(forecastSpend)}',
+      safeToSpend > 0
+          ? 'Safe budget ${CurrencyFormatter.inr(safeToSpend)}'
+          : 'Safe budget exhausted',
+    ];
   }
 
-  String _sipNarrative({
+  List<String> _sipBullets({
     required double monthNet,
     required double suggestedSipLow,
     required double suggestedSipHigh,
@@ -989,23 +1031,21 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
     required double safeToSpend,
   }) {
     if (monthNet <= 0) {
-      return 'You are currently negative on monthly net cashflow. Reduce fixed and impulse spends first, '
-          'then start with a small SIP like ${CurrencyFormatter.inr(500)} and scale once monthly net turns positive.';
+      return <String>[
+        'Monthly cashflow negative',
+        'Start small SIP: ${CurrencyFormatter.inr(500)}',
+        'Cut optional spend first',
+      ];
     }
 
-    final String range =
-        '${CurrencyFormatter.inr(suggestedSipLow)} to ${CurrencyFormatter.inr(suggestedSipHigh)}';
-    final String affordability = selected.monthlyAmount <= suggestedSipHigh
-        ? 'The selected SIP is inside your current affordability range.'
-        : 'The selected SIP is higher than the recommended safe range for current cashflow.';
-    final String safeNote = safeToSpend > 0
-        ? 'Keep weekly optional spends below ${CurrencyFormatter.inr(safeToSpend * 0.25)} to sustain this SIP.'
-        : 'Stabilize weekly spending first before increasing SIP commitments.';
-
-    return 'Based on live income and spend, your current monthly SIP range is $range. '
-        '$affordability Over $_sipYears years at ${_assumedAnnualReturn.toStringAsFixed(1)}% assumed annual return, '
-        'the selected plan may grow to ${CurrencyFormatter.inr(selected.estimatedCorpus)} '
-        'on an invested amount of ${CurrencyFormatter.inr(selected.totalInvested)}. $safeNote';
+    return <String>[
+      'Suggested SIP ${CurrencyFormatter.inr(suggestedSipLow)} - ${CurrencyFormatter.inr(suggestedSipHigh)}',
+      selected.monthlyAmount <= suggestedSipHigh ? 'Selected SIP is affordable' : 'Selected SIP is aggressive',
+      'Est. corpus ${CurrencyFormatter.inr(selected.estimatedCorpus)}',
+      safeToSpend > 0
+          ? 'Keep weekly optional spend < ${CurrencyFormatter.inr(safeToSpend * 0.25)}'
+          : 'Stabilize weekly spend before increasing SIP',
+    ];
   }
 
   Widget _statusCard(
