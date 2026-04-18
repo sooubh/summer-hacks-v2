@@ -213,6 +213,47 @@ class ProfileSettingsScreen extends ConsumerWidget {
               'Unlocked ${unlocked.length}/${profile.badges.length} badges',
               style: Theme.of(context).textTheme.bodySmall,
             ),
+            const SizedBox(height: 8),
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: Text(
+                    '${profile.currentRank} -> ${profile.nextRank}',
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                  ),
+                ),
+                Text(
+                  profile.coinsToNextRank <= 0
+                      ? 'Max tier'
+                      : '${profile.coinsToNextRank} to next',
+                  style: Theme.of(context).textTheme.labelSmall,
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            LinearProgressIndicator(
+              value: profile.progressToNextRank,
+              minHeight: 8,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                color: Theme.of(context)
+                    .colorScheme
+                    .surfaceContainerHighest
+                    .withValues(alpha: 0.4),
+              ),
+              child: Text(
+                profile.nextBestAction,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
             const SizedBox(height: 10),
             if (unlocked.isEmpty)
               const Text('No rewards unlocked yet. Keep tracking consistently.')

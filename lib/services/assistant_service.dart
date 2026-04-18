@@ -18,16 +18,31 @@ class AssistantService {
     required List<Map<String, String>> history,
   }) async {
     final String apiKey = _requireApiKey();
-    return VoiceLiveSession.connect(
-      apiKey: apiKey,
-      model: AiRuntimeConfig.voiceModel,
-      responseModalities: const <String>['AUDIO'],
-      systemInstruction: _buildLiveSessionSystemInstruction(
-        clientContext: clientContext,
-        history: history,
-      ),
-      voiceName: AiRuntimeConfig.liveVoiceName,
-    );
+    final List<String> candidates = _uniqueModelCandidates(<String>[
+      AiRuntimeConfig.voiceModel,
+      'models/gemini-2.0-flash-live-001',
+      'models/gemini-live-2.5-flash-preview',
+    ]);
+
+    Object? lastError;
+    for (final String candidate in candidates) {
+      try {
+        return VoiceLiveSession.connect(
+          apiKey: apiKey,
+          model: candidate,
+          responseModalities: const <String>['AUDIO', 'TEXT'],
+          systemInstruction: _buildLiveSessionSystemInstruction(
+            clientContext: clientContext,
+            history: history,
+          ),
+          voiceName: AiRuntimeConfig.liveVoiceName,
+        );
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    throw lastError ?? StateError('Unable to open live voice session.');
   }
 
   Future<void> sendLiveTextPrompt({
@@ -134,31 +149,40 @@ class AssistantService {
     final String systemPrompt = _buildSystemPrompt(clientContext);
 
     bool fallbackUsed = false;
-    String modelUsed = AiRuntimeConfig.voiceModel;
+    String modelUsed = AiRuntimeConfig.chatFastModel;
 
-    String reply;
-    try {
-      reply = await _generateWithRetry(
-        apiKey: apiKey,
-        model: modelUsed,
-        systemPrompt: systemPrompt,
-        history: allMessages,
-        temperature: 0.3,
-        maxOutputTokens: 420,
-        attempts: 2,
-      );
-    } catch (_) {
-      fallbackUsed = true;
-      modelUsed = AiRuntimeConfig.chatFastModel;
-      reply = await _generateWithRetry(
-        apiKey: apiKey,
-        model: modelUsed,
-        systemPrompt: systemPrompt,
-        history: allMessages,
-        temperature: 0.35,
-        maxOutputTokens: 420,
-        attempts: 2,
-      );
+    final List<String> candidates = _uniqueModelCandidates(<String>[
+      AiRuntimeConfig.chatFastModel,
+      'gemini-2.0-flash',
+      AiRuntimeConfig.chatDeepModel,
+      'gemini-1.5-flash',
+    ]);
+
+    String? reply;
+    Object? lastError;
+    for (int i = 0; i < candidates.length; i++) {
+      final String candidate = candidates[i];
+      try {
+        modelUsed = candidate;
+        reply = await _generateWithRetry(
+          apiKey: apiKey,
+          model: candidate,
+          systemPrompt: systemPrompt,
+          history: allMessages,
+          temperature: 0.3,
+          maxOutputTokens: 260,
+          attempts: 1,
+          requestTimeout: const Duration(seconds: 14),
+        );
+        fallbackUsed = i > 0;
+        break;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    if (reply == null) {
+      throw lastError ?? StateError('Voice turn request failed.');
     }
 
     final String normalizedReply = _normalizeAssistantReply(reply);
@@ -222,6 +246,7 @@ class AssistantService {
     required double temperature,
     required int maxOutputTokens,
     required int attempts,
+    Duration requestTimeout = const Duration(seconds: 25),
   }) async {
     Object? lastError;
 
@@ -234,6 +259,7 @@ class AssistantService {
           history: history,
           temperature: temperature,
           maxOutputTokens: maxOutputTokens,
+          requestTimeout: requestTimeout,
         );
       } catch (error) {
         lastError = error;
@@ -253,6 +279,7 @@ class AssistantService {
     required List<Map<String, String>> history,
     required double temperature,
     required int maxOutputTokens,
+    required Duration requestTimeout,
   }) async {
     final Uri uri = Uri.https(
       'generativelanguage.googleapis.com',
@@ -287,7 +314,7 @@ class AssistantService {
           headers: <String, String>{'Content-Type': 'application/json'},
           body: jsonEncode(payload),
         )
-        .timeout(const Duration(seconds: 25));
+        .timeout(requestTimeout);
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw StateError(
@@ -458,6 +485,23 @@ class AssistantService {
       );
     }
     return value;
+  }
+
+  List<String> _uniqueModelCandidates(List<String> models) {
+    final Set<String> seen = <String>{};
+    final List<String> cleaned = <String>[];
+
+    for (final String raw in models) {
+      final String model = raw.trim();
+      if (model.isEmpty) {
+        continue;
+      }
+      if (seen.add(model)) {
+        cleaned.add(model);
+      }
+    }
+
+    return cleaned;
   }
 }
 

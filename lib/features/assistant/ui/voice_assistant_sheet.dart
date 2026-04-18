@@ -5,10 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_sound/flutter_sound.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:logger/logger.dart' show Level;
 import 'package:permission_handler/permission_handler.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:student_fin_os/core/router/app_router.dart';
 import 'package:student_fin_os/core/config/ai_runtime_config.dart';
 import 'package:student_fin_os/models/assistant_models.dart';
@@ -31,6 +33,8 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
   final FlutterSoundPlayer _pcmPlayer = FlutterSoundPlayer(
     logLevel: Level.warning,
   );
+  final stt.SpeechToText _speechToText = stt.SpeechToText();
+  final FlutterTts _tts = FlutterTts();
   final StringBuffer _liveReplyBuffer = StringBuffer();
   final List<Uint8List> _playbackQueue = <Uint8List>[];
 
@@ -62,9 +66,15 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
   bool _microphonePermissionGranted = false;
   String _microphonePermissionState = 'unknown';
   bool _micRecoveryInProgress = false;
+  bool _speechReady = false;
+  bool _fallbackListening = false;
+  bool _fallbackSpeaking = false;
+  bool _fallbackSubmitting = false;
+  String _fallbackTranscriptDraft = '';
   final int _liveInputSampleRate = AiRuntimeConfig.liveInputSampleRate;
   int _liveOutputSampleRate = AiRuntimeConfig.liveOutputSampleRate;
   Timer? _micHealthCheckTimer;
+  Timer? _fallbackAutoStopTimer;
 
   @override
   void initState() {
@@ -95,6 +105,12 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
         _resumeMicAfterReconnect = true;
         unawaited(_stopMicStream(markProcessing: false, suppressUi: true));
       }
+      if (_fallbackListening) {
+        unawaited(_stopFallbackListening(cancelOnly: true));
+      }
+      if (_fallbackSpeaking) {
+        unawaited(_stopFallbackSpeech());
+      }
       return;
     }
 
@@ -112,7 +128,11 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
   Future<void> _shutdownVoiceRuntime() async {
     _cancelReconnectTimer();
     _stopMicHealthMonitor();
+    _fallbackAutoStopTimer?.cancel();
+    _fallbackAutoStopTimer = null;
     _shouldMaintainLiveConnection = false;
+    await _stopFallbackListening(cancelOnly: true);
+    await _stopFallbackSpeech();
     await _stopMicStream(markProcessing: false, suppressUi: true);
     await _clearPlayback(immediate: true);
     await _disconnectLiveSession(updateState: false);
@@ -145,6 +165,7 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
       await _pcmPlayer.openPlayer();
       _pcmPlayerReady = true;
       await _restartPcmPlayer(sampleRate: _liveOutputSampleRate);
+      await _initializeFallbackVoiceRuntime();
       _appendDebugEvent('Audio runtime initialized successfully.');
 
       if (mounted) {
@@ -229,6 +250,259 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
       } catch (_) {}
       _pcmPlayerReady = false;
     }
+  }
+
+  Future<void> _initializeFallbackVoiceRuntime() async {
+    try {
+      _speechReady = await _speechToText.initialize(
+        onStatus: _handleFallbackSpeechStatus,
+        onError: (dynamic error) {
+          final String errorText = error.toString();
+          _appendDebugEvent(
+            'Speech recognizer error: $errorText',
+            code: 'stt_error',
+          );
+          if (mounted && !_isDisposing) {
+            ref
+                .read(voiceAssistantControllerProvider.notifier)
+                .setError(
+                  'Speech recognition failed: $errorText',
+                  code: 'stt_error',
+                );
+          }
+        },
+      );
+
+      await _tts.awaitSpeakCompletion(true);
+      await _tts.setLanguage('en-IN');
+      await _tts.setSpeechRate(0.56);
+      await _tts.setPitch(1.0);
+      await _tts.setVolume(1.0);
+
+      _tts.setStartHandler(() {
+        _fallbackSpeaking = true;
+      });
+      _tts.setCompletionHandler(() {
+        _fallbackSpeaking = false;
+        if (!mounted || _isDisposing) {
+          return;
+        }
+        if (!_micStreamActive) {
+          ref
+              .read(voiceAssistantControllerProvider.notifier)
+              .setStatus(VoiceAssistantStatus.idle);
+        }
+      });
+      _tts.setCancelHandler(() {
+        _fallbackSpeaking = false;
+        if (!mounted || _isDisposing) {
+          return;
+        }
+        if (!_micStreamActive) {
+          ref
+              .read(voiceAssistantControllerProvider.notifier)
+              .setStatus(VoiceAssistantStatus.idle);
+        }
+      });
+      _tts.setErrorHandler((dynamic message) {
+        _appendDebugEvent('TTS error: $message', code: 'tts_error');
+      });
+    } catch (error) {
+      _speechReady = false;
+      _appendDebugEvent(
+        'Fallback voice runtime initialization failed: $error',
+        code: 'fallback_runtime',
+      );
+    }
+  }
+
+  void _handleFallbackSpeechStatus(String status) {
+    _appendDebugEvent('Speech status: $status');
+
+    if (status.toLowerCase() != 'notlistening') {
+      return;
+    }
+
+    if (!_fallbackListening || _fallbackSubmitting) {
+      return;
+    }
+
+    final String transcript = _fallbackTranscriptDraft.trim();
+    if (transcript.isEmpty) {
+      _fallbackListening = false;
+      if (mounted && !_isDisposing) {
+        ref
+            .read(voiceAssistantControllerProvider.notifier)
+            .setStatus(VoiceAssistantStatus.idle);
+      }
+      return;
+    }
+
+    unawaited(_completeFallbackTurn(transcript));
+  }
+
+  Future<void> _startFallbackSingleTurn() async {
+    if (_isDisposing || _fallbackSubmitting) {
+      return;
+    }
+
+    if (!_microphonePermissionGranted) {
+      final bool granted = await _ensureMicrophonePermission();
+      if (!granted) {
+        return;
+      }
+    }
+
+    if (!_speechReady) {
+      await _initializeFallbackVoiceRuntime();
+      if (!_speechReady) {
+        ref
+            .read(voiceAssistantControllerProvider.notifier)
+            .setError(
+              'Voice fallback is not ready on this device.',
+              code: 'fallback_unavailable',
+            );
+        return;
+      }
+    }
+
+    await _stopFallbackSpeech();
+    await _clearPlayback(immediate: true);
+
+    if (_speechToText.isListening) {
+      await _speechToText.stop();
+    }
+
+    _fallbackTranscriptDraft = '';
+    _fallbackListening = true;
+
+    final VoiceAssistantController controller = ref.read(
+      voiceAssistantControllerProvider.notifier,
+    );
+    controller.setStatus(VoiceAssistantStatus.listening);
+    controller.updateTranscript('Listening (fallback mode)...');
+
+    try {
+      await _speechToText.listen(
+        onResult: (dynamic result) {
+          final String transcript =
+              (result.recognizedWords?.toString() ?? '').trim();
+          if (transcript.isNotEmpty) {
+            _fallbackTranscriptDraft = transcript;
+            controller.updateTranscript(transcript);
+          }
+          if ((result.finalResult == true) && transcript.isNotEmpty) {
+            unawaited(_completeFallbackTurn(transcript));
+          }
+        },
+        listenFor: const Duration(seconds: 18),
+        pauseFor: const Duration(seconds: 2),
+        localeId: 'en_IN',
+        listenOptions: stt.SpeechListenOptions(
+          partialResults: true,
+          listenMode: stt.ListenMode.search,
+          cancelOnError: true,
+        ),
+      );
+
+      _fallbackAutoStopTimer?.cancel();
+      _fallbackAutoStopTimer = Timer(const Duration(seconds: 20), () {
+        if (!_fallbackListening || _fallbackSubmitting) {
+          return;
+        }
+        final String transcript = _fallbackTranscriptDraft.trim();
+        if (transcript.isNotEmpty) {
+          unawaited(_completeFallbackTurn(transcript));
+        } else {
+          unawaited(_stopFallbackListening(cancelOnly: true));
+        }
+      });
+    } catch (error) {
+      _fallbackListening = false;
+      controller.setError(
+        'Could not start fallback listening: $error',
+        code: 'fallback_listen',
+      );
+    }
+  }
+
+  Future<void> _completeFallbackTurn(String transcript) async {
+    if (_fallbackSubmitting) {
+      return;
+    }
+
+    final String cleaned = transcript.trim();
+    if (cleaned.isEmpty) {
+      await _stopFallbackListening(cancelOnly: true);
+      if (mounted && !_isDisposing) {
+        ref
+            .read(voiceAssistantControllerProvider.notifier)
+            .setStatus(VoiceAssistantStatus.idle);
+      }
+      return;
+    }
+
+    _fallbackSubmitting = true;
+    await _stopFallbackListening(cancelOnly: false);
+
+    final VoiceAssistantController controller = ref.read(
+      voiceAssistantControllerProvider.notifier,
+    );
+
+    controller.setStatus(VoiceAssistantStatus.processing);
+    controller.updateTranscript(cleaned);
+
+    try {
+      final VoiceAssistantReply? reply = await controller.submitTranscript(cleaned);
+      if (reply == null) {
+        return;
+      }
+
+      final String speech = reply.reply.trim();
+      if (speech.isEmpty) {
+        controller.setStatus(VoiceAssistantStatus.idle);
+        return;
+      }
+
+      controller.setStatus(VoiceAssistantStatus.speaking);
+      await _speakFallbackReply(speech);
+    } finally {
+      _fallbackSubmitting = false;
+    }
+  }
+
+  Future<void> _stopFallbackListening({required bool cancelOnly}) async {
+    _fallbackAutoStopTimer?.cancel();
+    _fallbackAutoStopTimer = null;
+
+    if (_speechToText.isListening) {
+      try {
+        if (cancelOnly) {
+          await _speechToText.cancel();
+        } else {
+          await _speechToText.stop();
+        }
+      } catch (_) {}
+    }
+
+    _fallbackListening = false;
+  }
+
+  Future<void> _stopFallbackSpeech() async {
+    try {
+      await _tts.stop();
+    } catch (_) {}
+    _fallbackSpeaking = false;
+  }
+
+  Future<void> _speakFallbackReply(String text) async {
+    final String cleaned = text.trim();
+    if (cleaned.isEmpty) {
+      return;
+    }
+
+    await _stopFallbackSpeech();
+    await _tts.speak(cleaned);
   }
 
   Future<void> _connectLiveSession() async {
@@ -625,6 +899,9 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
       return;
     }
 
+    await _stopFallbackListening(cancelOnly: true);
+    await _stopFallbackSpeech();
+
     if (AiRuntimeConfig.apiKey.trim().isEmpty) {
       _appendDebugEvent(
         'Cannot start voice because API key is missing.',
@@ -695,7 +972,7 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
 
     _discardCurrentModelTurn = false;
     _liveReplyBuffer.clear();
-    await _clearPlayback(immediate: true);
+    await _clearPlayback(immediate: false);
 
     final StreamController<Uint8List> micController =
         StreamController<Uint8List>();
@@ -890,6 +1167,22 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
       _reconnectAttempt = 0;
       _cancelReconnectTimer();
       await _stopMicStream(markProcessing: false);
+      return;
+    }
+
+    if (_fallbackListening) {
+      await _stopFallbackListening(cancelOnly: true);
+      if (mounted && !_isDisposing) {
+        ref
+            .read(voiceAssistantControllerProvider.notifier)
+            .setStatus(VoiceAssistantStatus.idle);
+      }
+      return;
+    }
+
+    if (!state.liveSessionReady && !_liveSessionConnecting) {
+      _appendDebugEvent('Live mode unavailable. Starting fallback voice turn.');
+      await _startFallbackSingleTurn();
       return;
     }
 

@@ -4,15 +4,15 @@ class AiRuntimeConfig {
   static const String _defineApiKey = String.fromEnvironment('AI_API_KEY');
   static const String _defineChatFastModel = String.fromEnvironment(
     'AI_CHAT_FAST_MODEL',
-    defaultValue: 'gemini-1.5-pro',
+    defaultValue: 'gemini-2.0-flash',
   );
   static const String _defineChatDeepModel = String.fromEnvironment(
     'AI_CHAT_DEEP_MODEL',
-    defaultValue: 'gemini-2.0-flash',
+    defaultValue: 'gemini-1.5-pro',
   );
   static const String _defineVoiceModel = String.fromEnvironment(
     'AI_VOICE_MODEL',
-    defaultValue: 'gemini-2.0-flash-exp',
+    defaultValue: 'models/gemini-2.0-flash-live-001',
   );
   static const String _defineLiveVoiceName = String.fromEnvironment(
     'AI_LIVE_VOICE_NAME',

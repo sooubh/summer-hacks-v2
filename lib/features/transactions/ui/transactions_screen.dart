@@ -35,22 +35,32 @@ class TransactionsScreen extends ConsumerWidget {
               const SizedBox(height: 8),
               Row(
                 children: <Widget>[
-                  FilledButton.icon(
-                    onPressed: accounts.isEmpty
-                        ? null
-                        : () => _openAddTransactionSheet(context, ref, accounts),
-                    icon: const Icon(Icons.add),
-                    label: Text(l10n.addTransaction),
+                  AnimatedScale(
+                    scale: accounts.isEmpty ? 0.98 : 1,
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOut,
+                    child: FilledButton.icon(
+                      onPressed: accounts.isEmpty
+                          ? null
+                          : () => _openAddTransactionSheet(context, ref, accounts),
+                      icon: const Icon(Icons.add),
+                      label: Text(l10n.addTransaction),
+                    ),
                   ),
                   const SizedBox(width: 10),
-                  OutlinedButton.icon(
-                    onPressed: accounts.isEmpty
-                        ? null
-                        : () {
-                            _simulateQrEntry(context, ref, accounts.first.id);
-                          },
-                    icon: const Icon(Icons.qr_code_scanner),
-                    label: Text(l10n.quickQrEntry),
+                  AnimatedScale(
+                    scale: accounts.isEmpty ? 0.98 : 1,
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOut,
+                    child: OutlinedButton.icon(
+                      onPressed: accounts.isEmpty
+                          ? null
+                          : () {
+                              _simulateQrEntry(context, ref, accounts.first.id);
+                            },
+                      icon: const Icon(Icons.qr_code_scanner),
+                      label: Text(l10n.quickQrEntry),
+                    ),
                   ),
                 ],
               ),
@@ -72,39 +82,53 @@ class TransactionsScreen extends ConsumerWidget {
                         itemCount: txList.length,
                         itemBuilder: (BuildContext context, int index) {
                           final FinanceTransaction tx = txList[index];
-                          return Card(
-                            margin: const EdgeInsets.only(bottom: 8),
-                            child: ListTile(
-                                onTap: () {
-                                  showModalBottomSheet(
-                                    context: context,
-                                    isScrollControlled: true,
-                                    backgroundColor: Colors.transparent,
-                                    builder: (ctx) => TransactionDetailsSheet(
-                                      transactions: txList,
-                                      initialIndex: index,
-                                    )
-                                  );
+                          return TweenAnimationBuilder<double>(
+                            tween: Tween<double>(begin: 0, end: 1),
+                            duration: Duration(milliseconds: 220 + (index.clamp(0, 10) * 45)),
+                            curve: Curves.easeOutCubic,
+                            child: Card(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              child: ListTile(
+                                  onTap: () {
+                                    showModalBottomSheet(
+                                      context: context,
+                                      isScrollControlled: true,
+                                      backgroundColor: Colors.transparent,
+                                      builder: (ctx) => TransactionDetailsSheet(
+                                        transactions: txList,
+                                        initialIndex: index,
+                                      )
+                                    );
+                                  },
+                                  leading: CircleAvatar(
+                                    backgroundColor: BrandStyles.getColor(tx.title).withValues(alpha: 0.15),
+                                    child: Icon(BrandStyles.getIcon(tx.title, tx.category), color: BrandStyles.getColor(tx.title), size: 20),
+                                ),
+                                title: Text(tx.title),
+                                subtitle: Text(
+                                  '${tx.category} • ${tx.source}${tx.isCategoryOverridden ? ' • ${l10n.manual}' : ' • ${l10n.auto}'}',
+                                ),
+                                onLongPress: () {
+                                  _openCategoryOverrideSheet(context, ref, tx);
                                 },
-                                leading: CircleAvatar(
-                                  backgroundColor: BrandStyles.getColor(tx.title).withValues(alpha: 0.15),
-                                  child: Icon(BrandStyles.getIcon(tx.title, tx.category), color: BrandStyles.getColor(tx.title), size: 20),
-                              ),
-                              title: Text(tx.title),
-                              subtitle: Text(
-                                '${tx.category} • ${tx.source}${tx.isCategoryOverridden ? ' • ${l10n.manual}' : ' • ${l10n.auto}'}',
-                              ),
-                              onLongPress: () {
-                                _openCategoryOverrideSheet(context, ref, tx);
-                              },
-                              trailing: Text(
-                                '${tx.isExpense ? '-' : '+'}${CurrencyFormatter.inr(tx.amount)}',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleSmall
-                                    ?.copyWith(fontWeight: FontWeight.w700),
+                                trailing: Text(
+                                  '${tx.isExpense ? '-' : '+'}${CurrencyFormatter.inr(tx.amount)}',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleSmall
+                                      ?.copyWith(fontWeight: FontWeight.w700),
+                                ),
                               ),
                             ),
+                            builder: (BuildContext context, double value, Widget? child) {
+                              return Opacity(
+                                opacity: value,
+                                child: Transform.translate(
+                                  offset: Offset(0, (1 - value) * 10),
+                                  child: child,
+                                ),
+                              );
+                            },
                           );
                         },
                       ),

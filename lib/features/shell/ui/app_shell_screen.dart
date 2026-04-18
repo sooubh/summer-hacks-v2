@@ -142,7 +142,9 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: <Widget>[
-              Container(
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOut,
                 height: 32,
                 width: 56,
                 decoration: BoxDecoration(
@@ -160,15 +162,18 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
                 ),
               ),
               const SizedBox(height: 4),
-              Text(
-                label,
+              AnimatedDefaultTextStyle(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOut,
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
                       fontWeight:
                           isSelected ? FontWeight.bold : FontWeight.w500,
                       color: isSelected
                           ? colorScheme.onSurface
                           : colorScheme.onSurfaceVariant,
-                    ),
+                    ) ??
+                    const TextStyle(),
+                child: Text(label),
               ),
             ],
           ),
@@ -304,14 +309,44 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
                 Expanded(
                   child: AnimatedSwitcher(
                     duration: const Duration(milliseconds: 280),
-                    child: _pages[_index],
+                    transitionBuilder: (Widget child, Animation<double> animation) {
+                      return FadeTransition(
+                        opacity: animation,
+                        child: SlideTransition(
+                          position: Tween<Offset>(
+                            begin: const Offset(0.02, 0),
+                            end: Offset.zero,
+                          ).animate(animation),
+                          child: child,
+                        ),
+                      );
+                    },
+                    child: KeyedSubtree(
+                      key: ValueKey<int>(_index),
+                      child: _pages[_index],
+                    ),
                   ),
                 ),
               ],
             )
           : AnimatedSwitcher(
               duration: const Duration(milliseconds: 250),
-              child: _pages[_index],
+              transitionBuilder: (Widget child, Animation<double> animation) {
+                return FadeTransition(
+                  opacity: animation,
+                  child: SlideTransition(
+                    position: Tween<Offset>(
+                      begin: const Offset(0.03, 0),
+                      end: Offset.zero,
+                    ).animate(animation),
+                    child: child,
+                  ),
+                );
+              },
+              child: KeyedSubtree(
+                key: ValueKey<int>(_index),
+                child: _pages[_index],
+              ),
             ),
       bottomNavigationBar: desktopLayout
           ? null

@@ -35,11 +35,16 @@ class InsightsScreen extends ConsumerStatefulWidget {
   ConsumerState<InsightsScreen> createState() => _InsightsScreenState();
 }
 
-class _InsightsScreenState extends ConsumerState<InsightsScreen> {
+class _InsightsScreenState extends ConsumerState<InsightsScreen>
+  with TickerProviderStateMixin {
   _InsightFilter _filter = _InsightFilter.all;
   double _assumedAnnualReturn = 12;
   int _sipYears = 10;
   int _selectedSipAmount = 2000;
+  late final AnimationController _urgentPulseController;
+  late final AnimationController _syncSpinController;
+  bool _isUrgentPulseRunning = false;
+  bool _isSyncingFeed = false;
 
   static const List<int> _sipScenarioAmounts = <int>[
     500,
@@ -53,12 +58,27 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
   @override
   void initState() {
     super.initState();
+    _urgentPulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
+    _syncSpinController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
         return;
       }
       ref.read(insightsControllerProvider.notifier).refreshRuleBasedInsights();
     });
+  }
+
+  @override
+  void dispose() {
+    _urgentPulseController.dispose();
+    _syncSpinController.dispose();
+    super.dispose();
   }
 
   @override
@@ -131,6 +151,7 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
 
     final bool hasCritical = criticalCount > 0;
     final bool hasWarning = !hasCritical && warningCount > 0;
+    _updateUrgentPulse(hasCritical);
     final Color summaryColor = hasCritical
         ? const Color(0xFFC62828)
         : (hasWarning ? const Color(0xFFEF6C00) : const Color(0xFF2E7D32));
@@ -145,6 +166,95 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
         : (hasWarning
             ? '$warningCount heads-up item${warningCount == 1 ? '' : 's'} to review this week.'
             : 'No urgent alerts detected. Keep tracking your feed.');
+
+    final Widget insightListContent = prioritized.isEmpty
+        ? const EmptyState(
+            title: 'No insights in this filter',
+            message: 'Insights will appear automatically from your latest data.',
+            icon: Icons.lightbulb,
+          )
+        : Column(
+            key: ValueKey<String>('${_filter.name}-${prioritized.length}'),
+            children: prioritized.asMap().entries.map((MapEntry<int, AiInsight> entry) {
+              final int index = entry.key;
+              final AiInsight insight = entry.value;
+              final Color severityColor = _colorForSeverity(insight.severity);
+              final Widget card = Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: severityColor.withValues(alpha: 0.22)),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Row(
+                          children: <Widget>[
+                            _severityPill(context, insight.severity),
+                            const Spacer(),
+                            Text(
+                              _relativeTime(insight.createdAt),
+                              style: Theme.of(context).textTheme.labelSmall,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Icon(
+                              _iconForSeverity(insight.severity),
+                              color: severityColor,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                insight.title,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleSmall
+                                    ?.copyWith(fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          insight.message,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: <Widget>[
+                            _compactTag(
+                              context,
+                              _actionHint(insight.severity),
+                              color: severityColor,
+                            ),
+                            _compactTag(
+                              context,
+                              'Priority ${_severityLabel(insight.severity)}',
+                              color: severityColor,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+              return _staggerReveal(
+                index: index,
+                child: card,
+              );
+            }).toList(growable: false),
+          );
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -186,40 +296,13 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
           ],
         ),
         const SizedBox(height: 10),
-        Card(
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: summaryColor.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: summaryColor.withValues(alpha: 0.32)),
-            ),
-            child: Row(
-              children: <Widget>[
-                Icon(summaryIcon, color: summaryColor),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(
-                        summaryTitle,
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w700,
-                              color: summaryColor,
-                            ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        summaryMessage,
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
+        _buildAlertSummaryCard(
+          context,
+          hasCritical: hasCritical,
+          summaryColor: summaryColor,
+          summaryIcon: summaryIcon,
+          summaryTitle: summaryTitle,
+          summaryMessage: summaryMessage,
         ),
         const SizedBox(height: 10),
         Row(
@@ -231,11 +314,20 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
               ),
             ),
             FilledButton.icon(
-              onPressed: () {
-                ref.read(insightsControllerProvider.notifier).refreshRuleBasedInsights();
-              },
-              icon: const Icon(Icons.auto_awesome),
-              label: const Text('Sync Feed'),
+              onPressed: _isSyncingFeed ? null : _syncFeed,
+              icon: AnimatedBuilder(
+                animation: _syncSpinController,
+                builder: (BuildContext context, Widget? child) {
+                  return Transform.rotate(
+                    angle: _syncSpinController.value * math.pi * 2,
+                    child: child,
+                  );
+                },
+                child: Icon(
+                  _isSyncingFeed ? Icons.sync_rounded : Icons.auto_awesome,
+                ),
+              ),
+              label: Text(_isSyncingFeed ? 'Syncing...' : 'Sync Feed'),
             ),
           ],
         ),
@@ -312,87 +404,98 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
           ),
         ),
         const SizedBox(height: 10),
-        if (prioritized.isEmpty)
-          const EmptyState(
-            title: 'No insights in this filter',
-            message: 'Insights will appear automatically from your latest data.',
-            icon: Icons.lightbulb,
-          )
-        else
-          ...prioritized.map((AiInsight insight) {
-            final Color severityColor = _colorForSeverity(insight.severity);
-            return Card(
-              margin: const EdgeInsets.only(bottom: 8),
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: severityColor.withValues(alpha: 0.22)),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Row(
-                        children: <Widget>[
-                          _severityPill(context, insight.severity),
-                          const Spacer(),
-                          Text(
-                            _relativeTime(insight.createdAt),
-                            style: Theme.of(context).textTheme.labelSmall,
+        AnimatedSwitcher(
+          duration: _animationsDisabled
+              ? Duration.zero
+              : const Duration(milliseconds: 240),
+          switchInCurve: Curves.easeOut,
+          switchOutCurve: Curves.easeIn,
+          transitionBuilder: (Widget child, Animation<double> animation) {
+            return FadeTransition(
+              opacity: animation,
+              child: child,
+            );
+          },
+          child: KeyedSubtree(
+            key: ValueKey<String>('feed-${_filter.name}-${prioritized.length}'),
+            child: insightListContent,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAlertSummaryCard(
+    BuildContext context, {
+    required bool hasCritical,
+    required Color summaryColor,
+    required IconData summaryIcon,
+    required String summaryTitle,
+    required String summaryMessage,
+  }) {
+    final Widget card = Card(
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: summaryColor.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: summaryColor.withValues(alpha: 0.32)),
+        ),
+        child: Row(
+          children: <Widget>[
+            Icon(summaryIcon, color: summaryColor),
+            const SizedBox(width: 10),
+            Expanded(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 280),
+                switchInCurve: Curves.easeOut,
+                switchOutCurve: Curves.easeIn,
+                transitionBuilder: (Widget child, Animation<double> animation) {
+                  return FadeTransition(
+                    opacity: animation,
+                    child: child,
+                  );
+                },
+                child: Column(
+                  key: ValueKey<String>(summaryTitle),
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      summaryTitle,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: summaryColor,
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Icon(
-                            _iconForSeverity(insight.severity),
-                            color: severityColor,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              insight.title,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleSmall
-                                  ?.copyWith(fontWeight: FontWeight.w700),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        insight.message,
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 10),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: <Widget>[
-                          _compactTag(
-                            context,
-                            _actionHint(insight.severity),
-                            color: severityColor,
-                          ),
-                          _compactTag(
-                            context,
-                            'Priority ${_severityLabel(insight.severity)}',
-                            color: severityColor,
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      summaryMessage,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
                 ),
               ),
-            );
-          }),
-      ],
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (!hasCritical) {
+      return card;
+    }
+
+    return AnimatedBuilder(
+      animation: _urgentPulseController,
+      builder: (BuildContext context, Widget? child) {
+        final double t = _urgentPulseController.value;
+        final double scale = 1 + (t * 0.02);
+        return Transform.scale(
+          scale: scale,
+          child: child,
+        );
+      },
+      child: card,
     );
   }
 
@@ -449,6 +552,40 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
       monthTransactions,
       5,
     );
+    final List<Widget> metricCards = <Widget>[
+      _metricCard(
+        context,
+        label: 'This Month Spend',
+        value: CurrencyFormatter.inr(monthExpense),
+        icon: Icons.payments_outlined,
+        signal: spendSignal,
+        signalLabel: spendSignalLabel,
+      ),
+      _metricCard(
+        context,
+        label: 'This Month Income',
+        value: CurrencyFormatter.inr(monthIncome),
+        icon: Icons.account_balance_wallet_outlined,
+        signal: incomeSignal,
+        signalLabel: monthIncome >= monthExpense ? 'covered' : 'low',
+      ),
+      _metricCard(
+        context,
+        label: 'Month-End Estimate',
+        value: CurrencyFormatter.inr(forecastSpend),
+        icon: Icons.timeline_outlined,
+        signal: estimateSignal,
+        signalLabel: forecastSpend <= monthIncome ? 'within' : 'over',
+      ),
+      _metricCard(
+        context,
+        label: 'Safe To Spend',
+        value: CurrencyFormatter.inr(snapshot.safeToSpend),
+        icon: Icons.shield_outlined,
+        signal: safeSignal,
+        signalLabel: snapshot.safeToSpend > 0 ? 'safe' : 'risk',
+      ),
+    ];
     final List<String> spendingBullets = _spendingBullets(
       monthIncome: monthIncome,
       monthExpense: monthExpense,
@@ -468,40 +605,14 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: <Widget>[
-            _metricCard(
-              context,
-              label: 'This Month Spend',
-              value: CurrencyFormatter.inr(monthExpense),
-              icon: Icons.payments_outlined,
-              signal: spendSignal,
-              signalLabel: spendSignalLabel,
-            ),
-            _metricCard(
-              context,
-              label: 'This Month Income',
-              value: CurrencyFormatter.inr(monthIncome),
-              icon: Icons.account_balance_wallet_outlined,
-              signal: incomeSignal,
-              signalLabel: monthIncome >= monthExpense ? 'covered' : 'low',
-            ),
-            _metricCard(
-              context,
-              label: 'Month-End Estimate',
-              value: CurrencyFormatter.inr(forecastSpend),
-              icon: Icons.timeline_outlined,
-              signal: estimateSignal,
-              signalLabel: forecastSpend <= monthIncome ? 'within' : 'over',
-            ),
-            _metricCard(
-              context,
-              label: 'Safe To Spend',
-              value: CurrencyFormatter.inr(snapshot.safeToSpend),
-              icon: Icons.shield_outlined,
-              signal: safeSignal,
-              signalLabel: snapshot.safeToSpend > 0 ? 'safe' : 'risk',
-            ),
-          ],
+          children: metricCards
+              .asMap()
+              .entries
+              .map((MapEntry<int, Widget> entry) => _staggerReveal(
+                    index: entry.key,
+                    child: entry.value,
+                  ))
+              .toList(growable: false),
         ),
         const SizedBox(height: 12),
         Card(
@@ -536,6 +647,10 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
               child: SizedBox(
                 height: 220,
                 child: BarChart(
+                  duration: _animationsDisabled
+                      ? Duration.zero
+                      : const Duration(milliseconds: 420),
+                  curve: Curves.easeOutCubic,
                   BarChartData(
                     maxY: topCategories.first.value * 1.2,
                     borderData: FlBorderData(show: false),
@@ -634,7 +749,14 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 10),
-                LinearProgressIndicator(value: reserveProgress),
+                TweenAnimationBuilder<double>(
+                  tween: Tween<double>(begin: 0, end: reserveProgress),
+                  duration: const Duration(milliseconds: 700),
+                  curve: Curves.easeOutCubic,
+                  builder: (BuildContext context, double value, Widget? child) {
+                    return LinearProgressIndicator(value: value);
+                  },
+                ),
                 const SizedBox(height: 8),
                 Text(
                   reserveGap <= 0
@@ -654,9 +776,12 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
           subtitle: 'Estimated time to close reserve gap for multiple monthly amounts.',
         ),
         const SizedBox(height: 8),
-        ...reserveScenarios.map((int amount) {
+        ...reserveScenarios.asMap().entries.map((MapEntry<int, int> entry) {
+          final int amount = entry.value;
           final int months = reserveGap <= 0 ? 0 : (reserveGap / amount).ceil();
-          return Card(
+          return _staggerReveal(
+            index: entry.key + 1,
+            child: Card(
             margin: const EdgeInsets.only(bottom: 8),
             child: ListTile(
               leading: const Icon(Icons.savings_outlined),
@@ -666,6 +791,7 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                     ? 'Reserve target already covered.'
                     : 'Estimated completion in about $months month${months == 1 ? '' : 's'}.',
               ),
+            ),
             ),
           );
         }),
@@ -725,245 +851,292 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
           subtitle: 'Real-time affordability + estimated market returns.',
         ),
         const SizedBox(height: 12),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  'Live Monthly Cashflow',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Income: ${CurrencyFormatter.inr(monthIncome)}\n'
-                  'Spend: ${CurrencyFormatter.inr(monthExpense)}\n'
-                  'Net: ${CurrencyFormatter.inr(monthNet)}',
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  monthNet <= 0
-                      ? 'You are currently cashflow-negative. Reduce spending first, then start SIP at a small amount.'
-                      : 'Suggested SIP range from current cashflow: ${CurrencyFormatter.inr(suggestedSipLow)} to ${CurrencyFormatter.inr(suggestedSipHigh)} per month.',
-                  style: Theme.of(context).textTheme.bodySmall,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: <Widget>[
-                    _signalBadge(
-                      context,
-                      label: monthNet >= 0 ? 'Cashflow positive' : 'Cashflow negative',
-                      signal: cashflowSignal,
-                    ),
-                    _signalBadge(
-                      context,
-                      label: selected.monthlyAmount <= suggestedSipHigh
-                          ? 'SIP in range'
-                          : 'SIP above range',
-                      signal: sipFitSignal,
-                    ),
-                  ],
-                ),
-              ],
+        _staggerReveal(
+          index: 0,
+          child: Card(
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    'Live Monthly Cashflow',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Income: ${CurrencyFormatter.inr(monthIncome)}\n'
+                    'Spend: ${CurrencyFormatter.inr(monthExpense)}\n'
+                    'Net: ${CurrencyFormatter.inr(monthNet)}',
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    monthNet <= 0
+                        ? 'You are currently cashflow-negative. Reduce spending first, then start SIP at a small amount.'
+                        : 'Suggested SIP range from current cashflow: ${CurrencyFormatter.inr(suggestedSipLow)} to ${CurrencyFormatter.inr(suggestedSipHigh)} per month.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: <Widget>[
+                      _signalBadge(
+                        context,
+                        label: monthNet >= 0 ? 'Cashflow positive' : 'Cashflow negative',
+                        signal: cashflowSignal,
+                      ),
+                      _signalBadge(
+                        context,
+                        label: selected.monthlyAmount <= suggestedSipHigh
+                            ? 'SIP in range'
+                            : 'SIP above range',
+                        signal: sipFitSignal,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),
         const SizedBox(height: 12),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  'Assumptions',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Expected annual return: ${_assumedAnnualReturn.toStringAsFixed(1)}%',
-                ),
-                Slider(
-                  value: _assumedAnnualReturn,
-                  min: 8,
-                  max: 18,
-                  divisions: 20,
-                  label: '${_assumedAnnualReturn.toStringAsFixed(1)}%',
-                  onChanged: (double value) {
-                    setState(() {
-                      _assumedAnnualReturn = value;
-                    });
-                  },
-                ),
-                Text('Investment horizon: $_sipYears years'),
-                Slider(
-                  value: _sipYears.toDouble(),
-                  min: 1,
-                  max: 25,
-                  divisions: 24,
-                  label: '$_sipYears years',
-                  onChanged: (double value) {
-                    setState(() {
-                      _sipYears = value.round();
-                    });
-                  },
-                ),
-              ],
+        _staggerReveal(
+          index: 1,
+          child: Card(
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    'Assumptions',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Expected annual return: ${_assumedAnnualReturn.toStringAsFixed(1)}%',
+                  ),
+                  Slider(
+                    value: _assumedAnnualReturn,
+                    min: 8,
+                    max: 18,
+                    divisions: 20,
+                    label: '${_assumedAnnualReturn.toStringAsFixed(1)}%',
+                    onChanged: (double value) {
+                      setState(() {
+                        _assumedAnnualReturn = value;
+                      });
+                    },
+                  ),
+                  Text('Investment horizon: $_sipYears years'),
+                  Slider(
+                    value: _sipYears.toDouble(),
+                    min: 1,
+                    max: 25,
+                    divisions: 24,
+                    label: '$_sipYears years',
+                    onChanged: (double value) {
+                      setState(() {
+                        _sipYears = value.round();
+                      });
+                    },
+                  ),
+                ],
+              ),
             ),
           ),
         ),
         const SizedBox(height: 12),
-        Wrap(
-          spacing: 8,
-          runSpacing: 6,
-          children: _sipScenarioAmounts.map((int amount) {
-            return ChoiceChip(
-              selected: _selectedSipAmount == amount,
-              label: Text(CurrencyFormatter.inr(amount.toDouble())),
-              onSelected: (_) {
-                setState(() {
-                  _selectedSipAmount = amount;
-                });
-              },
-            );
-          }).toList(growable: false),
+        _staggerReveal(
+          index: 2,
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: _sipScenarioAmounts.map((int amount) {
+              return ChoiceChip(
+                selected: _selectedSipAmount == amount,
+                label: Text(CurrencyFormatter.inr(amount.toDouble())),
+                onSelected: (_) {
+                  setState(() {
+                    _selectedSipAmount = amount;
+                  });
+                },
+              );
+            }).toList(growable: false),
+          ),
         ),
         const SizedBox(height: 10),
-        Card(
-          child: ListTile(
-            leading: const Icon(Icons.calculate_outlined),
-            title: Text('SIP ${CurrencyFormatter.inr(selected.monthlyAmount)} for $_sipYears years'),
-            subtitle: Text(
-              'Invested: ${CurrencyFormatter.inr(selected.totalInvested)}\n'
-              'Estimated corpus: ${CurrencyFormatter.inr(selected.estimatedCorpus)}\n'
-              'Estimated gain: ${CurrencyFormatter.inr(selected.estimatedGain)}',
+        _staggerReveal(
+          index: 3,
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 260),
+            transitionBuilder: (Widget child, Animation<double> animation) {
+              return FadeTransition(
+                opacity: animation,
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0, 0.05),
+                    end: Offset.zero,
+                  ).animate(animation),
+                  child: child,
+                ),
+              );
+            },
+            child: Card(
+              key: ValueKey<String>(
+                '${selected.monthlyAmount}-$_sipYears-${_assumedAnnualReturn.toStringAsFixed(1)}',
+              ),
+              child: ListTile(
+                leading: const Icon(Icons.calculate_outlined),
+                title: Text('SIP ${CurrencyFormatter.inr(selected.monthlyAmount)} for $_sipYears years'),
+                subtitle: Text(
+                  'Invested: ${CurrencyFormatter.inr(selected.totalInvested)}\n'
+                  'Estimated corpus: ${CurrencyFormatter.inr(selected.estimatedCorpus)}\n'
+                  'Estimated gain: ${CurrencyFormatter.inr(selected.estimatedGain)}',
+                ),
+              ),
             ),
           ),
         ),
         const SizedBox(height: 16),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(10, 14, 10, 10),
-            child: SizedBox(
-              height: 220,
-              child: LineChart(
-                LineChartData(
-                  minX: 0,
-                  maxX: _sipYears.toDouble(),
-                  minY: 0,
-                  maxY: selected.estimatedCorpus * 1.15,
-                  gridData: FlGridData(show: false),
-                  borderData: FlBorderData(show: false),
-                  titlesData: FlTitlesData(
-                    topTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
-                    ),
-                    leftTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
-                    ),
-                    rightTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
-                    ),
-                    bottomTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        interval: _sipYears <= 6 ? 1 : 2,
-                        getTitlesWidget: (double value, TitleMeta meta) {
-                          return Text(
-                            '${value.toInt()}y',
-                            style: Theme.of(context).textTheme.labelSmall,
-                          );
-                        },
+        _staggerReveal(
+          index: 4,
+          child: Card(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(10, 14, 10, 10),
+              child: SizedBox(
+                height: 220,
+                child: LineChart(
+                  duration: _animationsDisabled
+                      ? Duration.zero
+                      : const Duration(milliseconds: 450),
+                  curve: Curves.easeOutCubic,
+                  LineChartData(
+                    minX: 0,
+                    maxX: _sipYears.toDouble(),
+                    minY: 0,
+                    maxY: selected.estimatedCorpus * 1.15,
+                    gridData: FlGridData(show: false),
+                    borderData: FlBorderData(show: false),
+                    titlesData: FlTitlesData(
+                      topTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
                       ),
-                    ),
-                  ),
-                  lineBarsData: <LineChartBarData>[
-                    LineChartBarData(
-                      isCurved: true,
-                      color: Theme.of(context).colorScheme.primary,
-                      barWidth: 3,
-                      dotData: const FlDotData(show: false),
-                      spots: _sipGrowthSeries(
-                        monthlyAmount: selected.monthlyAmount,
-                        years: _sipYears,
-                        annualReturn: _assumedAnnualReturn,
+                      leftTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(10, 14, 10, 10),
-            child: SizedBox(
-              height: 220,
-              child: BarChart(
-                BarChartData(
-                  maxY: projections.last.estimatedCorpus * 1.2,
-                  borderData: FlBorderData(show: false),
-                  gridData: FlGridData(show: false),
-                  titlesData: FlTitlesData(
-                    topTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
-                    ),
-                    leftTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
-                    ),
-                    rightTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
-                    ),
-                    bottomTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        getTitlesWidget: (double value, TitleMeta meta) {
-                          final int idx = value.toInt();
-                          if (idx < 0 || idx >= projections.length) {
-                            return const SizedBox.shrink();
-                          }
-                          return Padding(
-                            padding: const EdgeInsets.only(top: 6),
-                            child: Text(
-                              '${(projections[idx].monthlyAmount / 1000).toStringAsFixed(0)}k',
+                      rightTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
+                      bottomTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          interval: _sipYears <= 6 ? 1 : 2,
+                          getTitlesWidget: (double value, TitleMeta meta) {
+                            return Text(
+                              '${value.toInt()}y',
                               style: Theme.of(context).textTheme.labelSmall,
-                            ),
-                          );
-                        },
+                            );
+                          },
+                        ),
                       ),
                     ),
+                    lineBarsData: <LineChartBarData>[
+                      LineChartBarData(
+                        isCurved: true,
+                        color: Theme.of(context).colorScheme.primary,
+                        barWidth: 3,
+                        dotData: const FlDotData(show: false),
+                        spots: _sipGrowthSeries(
+                          monthlyAmount: selected.monthlyAmount,
+                          years: _sipYears,
+                          annualReturn: _assumedAnnualReturn,
+                        ),
+                      ),
+                    ],
                   ),
-                  barGroups: _barGroupsForSip(projections),
                 ),
               ),
             ),
           ),
         ),
         const SizedBox(height: 12),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: sipBullets
-                  .map((String item) => _compactTag(context, item))
-                  .toList(growable: false),
+        _staggerReveal(
+          index: 5,
+          child: Card(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(10, 14, 10, 10),
+              child: SizedBox(
+                height: 220,
+                child: BarChart(
+                  duration: _animationsDisabled
+                      ? Duration.zero
+                      : const Duration(milliseconds: 450),
+                  curve: Curves.easeOutCubic,
+                  BarChartData(
+                    maxY: projections.last.estimatedCorpus * 1.2,
+                    borderData: FlBorderData(show: false),
+                    gridData: FlGridData(show: false),
+                    titlesData: FlTitlesData(
+                      topTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
+                      leftTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
+                      rightTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
+                      bottomTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          getTitlesWidget: (double value, TitleMeta meta) {
+                            final int idx = value.toInt();
+                            if (idx < 0 || idx >= projections.length) {
+                              return const SizedBox.shrink();
+                            }
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 6),
+                              child: Text(
+                                '${(projections[idx].monthlyAmount / 1000).toStringAsFixed(0)}k',
+                                style: Theme.of(context).textTheme.labelSmall,
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                    barGroups: _barGroupsForSip(projections),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        _staggerReveal(
+          index: 6,
+          child: Card(
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: sipBullets
+                    .map((String item) => _compactTag(context, item))
+                    .toList(growable: false),
+              ),
             ),
           ),
         ),
@@ -1303,12 +1476,25 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
             ],
           ),
           const SizedBox(height: 6),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: color,
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 260),
+            transitionBuilder: (Widget child, Animation<double> animation) {
+              return ScaleTransition(
+                scale: CurvedAnimation(
+                  parent: animation,
+                  curve: Curves.easeOutBack,
                 ),
+                child: child,
+              );
+            },
+            child: Text(
+              value,
+              key: ValueKey<String>('$label-$value'),
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: color,
+                  ),
+            ),
           ),
           const SizedBox(height: 2),
           Text(label, style: Theme.of(context).textTheme.labelSmall),
@@ -1324,17 +1510,101 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
     IconData? icon,
   }) {
     final bool selected = _filter == value;
-    return FilterChip(
-      selected: selected,
-      avatar: icon == null ? null : Icon(icon, size: 16),
-      label: Text(count == null ? label : '$label ($count)'),
-      onSelected: (bool _) {
-        setState(() {
-          _filter = value;
-        });
+    return AnimatedScale(
+      scale: selected ? 1.04 : 1,
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+      child: FilterChip(
+        selected: selected,
+        avatar: icon == null ? null : Icon(icon, size: 16),
+        label: Text(count == null ? label : '$label ($count)'),
+        onSelected: (bool _) {
+          setState(() {
+            _filter = value;
+          });
+        },
+      ),
+    );
+  }
+
+  Widget _staggerReveal({
+    required int index,
+    required Widget child,
+  }) {
+    if (_animationsDisabled) {
+      return child;
+    }
+    final int clampedIndex = index.clamp(0, 8);
+    final int delayMs = clampedIndex * 55;
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0, end: 1),
+      duration: Duration(milliseconds: 260 + delayMs),
+      curve: Curves.easeOutCubic,
+      child: child,
+      builder: (BuildContext context, double value, Widget? child) {
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, (1 - value) * 10),
+            child: child,
+          ),
+        );
       },
     );
   }
+
+  void _updateUrgentPulse(bool enabled) {
+    if (_animationsDisabled) {
+      if (_isUrgentPulseRunning) {
+        _urgentPulseController.stop();
+        _urgentPulseController.value = 0;
+        _isUrgentPulseRunning = false;
+      }
+      return;
+    }
+
+    if (enabled && !_isUrgentPulseRunning) {
+      _urgentPulseController.repeat(reverse: true);
+      _isUrgentPulseRunning = true;
+      return;
+    }
+
+    if (!enabled && _isUrgentPulseRunning) {
+      _urgentPulseController.stop();
+      _urgentPulseController.value = 0;
+      _isUrgentPulseRunning = false;
+    }
+  }
+
+  Future<void> _syncFeed() async {
+    if (_isSyncingFeed) {
+      return;
+    }
+
+    if (!_animationsDisabled) {
+      _syncSpinController.repeat();
+    }
+
+    setState(() {
+      _isSyncingFeed = true;
+    });
+
+    try {
+      await ref.read(insightsControllerProvider.notifier).refreshRuleBasedInsights();
+    } finally {
+      if (mounted) {
+        _syncSpinController.stop();
+        _syncSpinController.value = 0;
+
+        setState(() {
+          _isSyncingFeed = false;
+        });
+      }
+    }
+  }
+
+  bool get _animationsDisabled =>
+      WidgetsBinding.instance.platformDispatcher.accessibilityFeatures.disableAnimations;
 
   int _severityRank(InsightSeverity severity) {
     switch (severity) {

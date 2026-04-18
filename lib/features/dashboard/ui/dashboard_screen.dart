@@ -323,12 +323,32 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                           const SizedBox(height: 4),
                           Row(
                             children: [
-                              Text(
-                                _isBalanceVisible ? CurrencyFormatter.inr(snapshot.totalBalance) : '••••••',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .headlineMedium
-                                    ?.copyWith(fontWeight: FontWeight.w800),
+                              AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 260),
+                                transitionBuilder: (Widget child, Animation<double> animation) {
+                                  return FadeTransition(
+                                    opacity: animation,
+                                    child: SlideTransition(
+                                      position: Tween<Offset>(
+                                        begin: const Offset(0, 0.08),
+                                        end: Offset.zero,
+                                      ).animate(animation),
+                                      child: child,
+                                    ),
+                                  );
+                                },
+                                child: Text(
+                                  _isBalanceVisible
+                                      ? CurrencyFormatter.inr(snapshot.totalBalance)
+                                      : '••••••',
+                                  key: ValueKey<String>(
+                                    '${_isBalanceVisible ? 'show' : 'hide'}-${snapshot.totalBalance.toStringAsFixed(2)}',
+                                  ),
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .headlineMedium
+                                      ?.copyWith(fontWeight: FontWeight.w800),
+                                ),
                               ),
                               const SizedBox(width: 8),
                               IconButton(
@@ -665,6 +685,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                     icon: Icons.bar_chart,
                                   )
                                 : LineChart(
+                                  duration: const Duration(milliseconds: 420),
+                                  curve: Curves.easeOutCubic,
                                     LineChartData(
                                       minX: 0,
                                       maxX:
@@ -776,6 +798,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                               final List<MapEntry<String, double>> categories =
                                   _sortedCategoryEntries(snapshot.categoryBreakdown);
                               return BarChart(
+                                duration: const Duration(milliseconds: 420),
+                                curve: Curves.easeOutCubic,
                                 BarChartData(
                                   barGroups: _buildCategoryBars(categories),
                                   maxY: _categoryMaxY(categories),
