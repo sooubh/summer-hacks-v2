@@ -23,23 +23,42 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     super.dispose();
   }
 
+  InputDecoration _inputDecoration({
+    required String label,
+    required String hint,
+    IconData? icon,
+  }) {
+    return InputDecoration(
+      labelText: label,
+      hintText: hint,
+      prefixIcon: icon != null ? Icon(icon) : null,
+      filled: true,
+      fillColor: Colors.white.withOpacity(0.05),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide.none,
+      ),
+      contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 14),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final AppLocalizations l10n = AppLocalizations.of(context)!;
-    final AsyncValue<void> authState = ref.watch(authControllerProvider);
+    final l10n = AppLocalizations.of(context)!;
+    final authState = ref.watch(authControllerProvider);
 
-    ref.listen<AsyncValue<void>>(authControllerProvider, (AsyncValue<void>? previous,
-        AsyncValue<void> next) {
+    ref.listen<AsyncValue<void>>(authControllerProvider, (previous, next) {
       next.whenOrNull(
-        error: (Object error, StackTrace stackTrace) {
-          final String message;
-          if (error is FirebaseAuthException) {
-            message = error.message ?? l10n.authFailed;
-          } else {
-            message = error.toString();
-          }
+        error: (error, _) {
+          final message = error is FirebaseAuthException
+              ? error.message ?? l10n.authFailed
+              : error.toString();
+
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(message)),
+            SnackBar(
+              content: Text(message),
+              behavior: SnackBarBehavior.floating,
+            ),
           );
         },
       );
@@ -49,93 +68,175 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
+            colors: [
+              Color(0xFF050A14),
+              Color(0xFF0F1B2E),
+              Color(0xFF0A1325),
+            ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: <Color>[Color(0xFF070B14), Color(0xFF111E35), Color(0xFF0D1324)],
           ),
         ),
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 420),
-            child: Card(
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                color: Colors.white.withOpacity(0.05),
+                border: Border.all(color: Colors.white.withOpacity(0.08)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.4),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  )
+                ],
+              ),
               child: Padding(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.all(22),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
+                  children: [
+                    /// HEADER
                     Text(
                       l10n.appName,
-                      style: Theme.of(context)
-                          .textTheme
-                          .headlineSmall
-                          ?.copyWith(fontWeight: FontWeight.w700),
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
+                          ),
                     ),
                     const SizedBox(height: 6),
                     Text(
                       l10n.loginTagline,
-                      style: Theme.of(context).textTheme.bodyMedium,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(color: Colors.white70),
                     ),
-                    const SizedBox(height: 20),
+
+                    const SizedBox(height: 24),
+
+                    /// EMAIL FIELD
                     TextField(
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
-                      decoration: InputDecoration(
-                        labelText: l10n.collegeEmailLabel,
-                        hintText: l10n.collegeEmailHint,
+                      decoration: _inputDecoration(
+                        label: l10n.collegeEmailLabel,
+                        hint: l10n.collegeEmailHint,
+                        icon: Icons.email_outlined,
                       ),
                     ),
-                    const SizedBox(height: 12),
+
+                    const SizedBox(height: 14),
+
+                    /// OTP FIELD
                     if (_otpRequested)
                       TextField(
                         controller: _otpController,
                         keyboardType: TextInputType.number,
                         maxLength: 6,
-                        decoration: InputDecoration(
-                          labelText: l10n.otpLabel,
-                          hintText: l10n.otpHint,
+                        decoration: _inputDecoration(
+                          label: l10n.otpLabel,
+                          hint: l10n.otpHint,
+                          icon: Icons.lock_outline,
                         ),
                       ),
-                    const SizedBox(height: 8),
-                    FilledButton(
-                      onPressed: authState.isLoading
-                          ? null
-                          : () async {
-                              final String email = _emailController.text.trim();
-                              if (email.isEmpty) {
-                                return;
-                              }
-                              if (!_otpRequested) {
-                                await ref
-                                    .read(authControllerProvider.notifier)
-                                    .requestOtp(email);
-                                if (mounted) {
-                                  setState(() {
-                                    _otpRequested = true;
-                                  });
-                                }
-                              } else {
-                                await ref
-                                    .read(authControllerProvider.notifier)
-                                    .verifyOtp(
-                                      email: email,
-                                      otp: _otpController.text.trim(),
-                                    );
-                              }
-                            },
-                      child: Text(_otpRequested ? l10n.verifyOtp : l10n.sendOtp),
-                    ),
+
                     const SizedBox(height: 12),
-                    OutlinedButton.icon(
-                      onPressed: authState.isLoading
-                          ? null
-                          : () {
-                              ref
-                                  .read(authControllerProvider.notifier)
-                                  .signInWithGoogle();
-                            },
-                      icon: const Icon(Icons.login),
-                        label: Text(l10n.continueWithGoogle),
+
+                    /// PRIMARY BUTTON
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        onPressed: authState.isLoading
+                            ? null
+                            : () async {
+                                final email =
+                                    _emailController.text.trim();
+                                if (email.isEmpty) return;
+
+                                if (!_otpRequested) {
+                                  await ref
+                                      .read(authControllerProvider.notifier)
+                                      .requestOtp(email);
+                                  if (mounted) {
+                                    setState(() => _otpRequested = true);
+                                  }
+                                } else {
+                                  await ref
+                                      .read(authControllerProvider.notifier)
+                                      .verifyOtp(
+                                        email: email,
+                                        otp: _otpController.text.trim(),
+                                      );
+                                }
+                              },
+                        child: Text(
+                          _otpRequested
+                              ? l10n.verifyOtp
+                              : l10n.sendOtp,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    /// DIVIDER
+                    Row(
+                      children: [
+                        const Expanded(child: Divider()),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          child: Text(
+                            "OR",
+                            style: TextStyle(color: Colors.white54),
+                          ),
+                        ),
+                        const Expanded(child: Divider()),
+                      ],
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    /// GOOGLE BUTTON
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          padding:
+                              const EdgeInsets.symmetric(vertical: 14),
+                          side: BorderSide(
+                            color: Colors.white.withOpacity(0.2),
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        onPressed: authState.isLoading
+                            ? null
+                            : () {
+                                ref
+                                    .read(authControllerProvider.notifier)
+                                    .signInWithGoogle();
+                              },
+                        icon: const Icon(Icons.login),
+                        label: Text(
+                          l10n.continueWithGoogle,
+                          style: const TextStyle(fontWeight: FontWeight.w500),
+                        ),
+                      ),
                     ),
                   ],
                 ),

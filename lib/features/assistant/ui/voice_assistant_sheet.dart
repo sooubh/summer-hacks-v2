@@ -31,7 +31,6 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
   final FlutterSoundPlayer _pcmPlayer = FlutterSoundPlayer(
     logLevel: Level.warning,
   );
-  final TextEditingController _manualController = TextEditingController();
   final StringBuffer _liveReplyBuffer = StringBuffer();
   final List<Uint8List> _playbackQueue = <Uint8List>[];
 
@@ -80,7 +79,6 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
     _isDisposing = true;
     WidgetsBinding.instance.removeObserver(this);
     unawaited(_shutdownVoiceRuntime());
-    _manualController.dispose();
     super.dispose();
   }
 
@@ -298,6 +296,8 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
         unawaited(_startMicStream());
       }
     } catch (error) {
+      _resumeMicAfterReconnect =
+          _resumeMicAfterReconnect || _shouldMaintainLiveConnection;
       _appendDebugEvent(
         'Live session connect failed: $error',
         code: 'connect_retry',
@@ -393,7 +393,7 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
             : _liveReplyBuffer.toString().trim();
 
         if (fullReply.isNotEmpty) {
-          controller.completeStreamingReply(fullReply);
+          await controller.completeStreamingReply(fullReply);
         } else {
           controller.clearStreamingReply();
         }
@@ -625,6 +625,20 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
       return;
     }
 
+    if (AiRuntimeConfig.apiKey.trim().isEmpty) {
+      _appendDebugEvent(
+        'Cannot start voice because API key is missing.',
+        code: 'missing_api_key',
+      );
+      ref
+          .read(voiceAssistantControllerProvider.notifier)
+          .setError(
+            'Voice AI key is missing. Add GEMINI_API_KEY and retry.',
+            code: 'missing_api_key',
+          );
+      return;
+    }
+
     if (!_microphonePermissionGranted) {
       final bool hasMicrophonePermission = await _ensureMicrophonePermission();
       if (!hasMicrophonePermission) {
@@ -633,7 +647,14 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
     }
 
     _shouldMaintainLiveConnection = true;
+    _resumeMicAfterReconnect = true;
     _cancelReconnectTimer();
+
+    final VoiceAssistantController controller = ref.read(
+      voiceAssistantControllerProvider.notifier,
+    );
+    controller.setStatus(VoiceAssistantStatus.processing);
+    controller.updateTranscript('Connecting to voice...');
 
     if (!_voiceReady || !_pcmRecorderReady) {
       _appendDebugEvent(
@@ -657,16 +678,14 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
 
     final VoiceLiveSession? session = _liveSession;
     if (session == null) {
+      _resumeMicAfterReconnect = true;
       _scheduleReconnect(reason: 'Live session not available for microphone start.');
       _appendDebugEvent(
         'Live session not ready during microphone start.',
         code: 'not_ready',
       );
-      if (_reconnectAttempt == 0) {
-        ref
-            .read(voiceAssistantControllerProvider.notifier)
-            .setError('Live session is not ready yet. Reconnecting...', code: 'not_ready');
-      }
+      controller.setStatus(VoiceAssistantStatus.processing);
+      controller.updateTranscript('Reconnecting voice...');
       return;
     }
 
@@ -719,9 +738,7 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
         _startMicHealthMonitor();
       _appendDebugEvent('Microphone stream started.');
 
-      final VoiceAssistantController controller = ref.read(
-        voiceAssistantControllerProvider.notifier,
-      );
+      _resumeMicAfterReconnect = false;
       controller.startLiveAudioTurn();
       controller.updateTranscript('Continuous voice mode is active.');
       controller.setStatus(VoiceAssistantStatus.listening);
@@ -783,8 +800,11 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
       return;
     }
 
-    if (ref.read(voiceAssistantControllerProvider).status ==
-        VoiceAssistantStatus.listening) {
+    final VoiceAssistantStatus status = ref
+        .read(voiceAssistantControllerProvider)
+        .status;
+    if (status == VoiceAssistantStatus.listening ||
+        status == VoiceAssistantStatus.processing) {
       controller.setStatus(VoiceAssistantStatus.idle);
       controller.updateTranscript('');
     }
@@ -888,52 +908,6 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
     await _startMicStream();
   }
 
-  Future<void> _submitManualPrompt() async {
-    final String prompt = _manualController.text.trim();
-    if (prompt.isEmpty) {
-      return;
-    }
-
-    _appendDebugEvent('Submitting manual fallback prompt.');
-
-    _manualController.clear();
-
-    _shouldMaintainLiveConnection = true;
-    _cancelReconnectTimer();
-
-    if (_micStreamActive) {
-      await _stopMicStream(markProcessing: true);
-    }
-
-    final VoiceAssistantController controller = ref.read(
-      voiceAssistantControllerProvider.notifier,
-    );
-    final VoiceAssistantState state = ref.read(voiceAssistantControllerProvider);
-
-    if (state.liveSessionReady && _liveSession != null) {
-      controller.startLiveUserTurn(prompt);
-      try {
-        await ref.read(assistantServiceProvider).sendLiveTextPrompt(
-          session: _liveSession!,
-          prompt: prompt,
-        );
-      } catch (error) {
-        _appendDebugEvent(
-          'Unable to send live text prompt: $error',
-          code: 'send_prompt',
-        );
-        controller.setError(
-          'Unable to send prompt to live session: $error',
-          code: 'send_prompt',
-        );
-        _scheduleReconnect(reason: error.toString());
-      }
-      return;
-    }
-
-    await controller.submitTranscript(prompt);
-  }
-
   List<Map<String, String>> _historyPayloadForLive({
     required List<AssistantMessage> messages,
   }) {
@@ -951,53 +925,42 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
 
   @override
   Widget build(BuildContext context) {
-    final VoiceAssistantState state = ref.watch(
-      voiceAssistantControllerProvider,
-    );
+    final VoiceAssistantState state = ref.watch(voiceAssistantControllerProvider);
+    final bool isListening = state.status == VoiceAssistantStatus.listening;
+    final bool isSpeaking = state.status == VoiceAssistantStatus.speaking;
 
-    final List<AssistantMessage> recentMessages = state.messages.length <= 8
-        ? state.messages
-        : state.messages.sublist(state.messages.length - 8);
-    final bool showStreamingPreview = state.streamingReply.trim().isNotEmpty;
+    final Color currentColor = isSpeaking
+      ? Colors.purpleAccent
+        : (isListening ? Colors.greenAccent : Colors.grey);
 
     return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          16,
-          12,
-          16,
-          16 + MediaQuery.of(context).viewInsets.bottom,
-        ),
+      child: Container(
+        height: MediaQuery.of(context).size.height * 0.75,
+        padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + MediaQuery.of(context).viewInsets.bottom),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: <Widget>[
-                Icon(
-                  Icons.graphic_eq,
-                  color: Theme.of(context).colorScheme.primary,
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      Text(
-                        'Voice Assistant',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      Text(
-                        'Continuous mode stays active across short interruptions',
-                        style: Theme.of(context).textTheme.labelMedium,
-                      ),
-                    ],
+                GestureDetector(
+                  onLongPress: () {
+                    setState(() {
+                      _showDebugPanel = !_showDebugPanel;
+                    });
+                  },
+                  child: Text(
+                    state.liveSessionReady ? 'Live Mode' : 'Fallback Mode',
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: state.liveSessionReady ? Colors.green : Colors.orange,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
                 IconButton(
-                  tooltip: 'Open chat assistant',
                   onPressed: () {
                     final GoRouter router = GoRouter.of(context);
                     Navigator.of(context).pop();
@@ -1005,189 +968,103 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
                   },
                   icon: const Icon(Icons.chat_bubble_outline),
                 ),
-                IconButton(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                  },
-                  icon: const Icon(Icons.close),
-                ),
               ],
             ),
-            const SizedBox(height: 8),
-            _buildVoiceStatusConsole(context, state),
-            const SizedBox(height: 10),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Theme.of(
-                  context,
-                ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.34),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Text(
-                state.transcript.isEmpty
-                    ? 'Tap the mic once to start. The assistant keeps listening continuously until you stop it.'
-                    : state.transcript,
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-            ),
-            if (showStreamingPreview) ...<Widget>[
-              const SizedBox(height: 8),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
+            const Spacer(),
+            // Avatar/Orb visualization
+            GestureDetector(
+              onTap: _initializing ? null : () => _toggleMicrophone(state),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                width: isListening || isSpeaking ? 160 : 120,
+                height: isListening || isSpeaking ? 160 : 120,
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primary.withValues(
-                    alpha: 0.11,
+                  shape: BoxShape.circle,
+                  color: currentColor.withValues(
+                    alpha: isListening || isSpeaking ? 0.3 : 0.1,
                   ),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Text(
-                  state.streamingReply,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              ),
-            ],
-            if (state.activeModel != null) ...<Widget>[
-              const SizedBox(height: 8),
-              Text(
-                'Model: ${state.activeModel} (voice target: ${AiRuntimeConfig.voiceModel})',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ],
-            if (state.errorMessage != null) ...<Widget>[
-              const SizedBox(height: 8),
-              Text(
-                state.errorMessage!,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.error,
-                ),
-              ),
-              if (state.errorCode != null && state.errorCode!.trim().isNotEmpty)
-                Text(
-                  'Error code: ${state.errorCode}',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.error,
+                  border: Border.all(
+                    color: currentColor.withValues(alpha: 0.8),
+                    width: isListening || isSpeaking ? 4 : 2,
                   ),
-                ),
-            ],
-            const SizedBox(height: 8),
-            _buildDebugPanel(context, state),
-            const SizedBox(height: 10),
-            Expanded(
-              child: recentMessages.isEmpty
-                  ? Center(
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .surfaceContainerHighest
-                              .withValues(alpha: 0.3),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Text(
-                          'Your recent voice conversation appears here.',
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
+                  boxShadow: <BoxShadow>[
+                    if (isListening || isSpeaking)
+                      BoxShadow(
+                        color: currentColor.withValues(alpha: 0.5),
+                        blurRadius: 40,
+                        spreadRadius: 10,
                       ),
-                    )
-                  : ListView.builder(
-                      itemCount: recentMessages.length,
-                      itemBuilder: (BuildContext context, int index) {
-                        final AssistantMessage message = recentMessages[index];
-                        final bool isUser = message.role == AssistantRole.user;
-
-                        return Align(
-                          alignment: isUser
-                              ? Alignment.centerRight
-                              : Alignment.centerLeft,
-                          child: Container(
-                            margin: const EdgeInsets.symmetric(vertical: 5),
-                            padding: const EdgeInsets.fromLTRB(12, 9, 12, 7),
-                            constraints: const BoxConstraints(maxWidth: 440),
-                            decoration: BoxDecoration(
-                              color: isUser
-                                  ? Theme.of(context)
-                                      .colorScheme
-                                      .primaryContainer
-                                  : Theme.of(context)
-                                        .colorScheme
-                                        .surfaceContainerHighest
-                                        .withValues(alpha: 0.5),
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: <Widget>[
-                                Text(message.content),
-                                const SizedBox(height: 4),
-                                Text(
-                                  DateFormat(
-                                    'hh:mm a',
-                                  ).format(message.timestamp.toLocal()),
-                                  style: Theme.of(context).textTheme.labelSmall,
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: <Widget>[
-                Expanded(
-                  child: TextField(
-                    controller: _manualController,
-                    textInputAction: TextInputAction.send,
-                    onSubmitted: (_) => _submitManualPrompt(),
-                    decoration: const InputDecoration(
-                      labelText: 'Manual fallback',
-                      hintText: 'Type if microphone is unavailable',
-                    ),
-                  ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                IconButton.filled(
-                  onPressed: state.status == VoiceAssistantStatus.processing ||
-                          state.status == VoiceAssistantStatus.listening
-                      ? null
-                      : _submitManualPrompt,
-                  icon: const Icon(Icons.send),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.26),
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: Semantics(
-                button: true,
-                label: 'Voice assistant microphone control',
-                child: SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size.fromHeight(52),
-                    ),
-                    onPressed: _initializing
-                        ? null
-                        : () => _toggleMicrophone(state),
-                    icon: Icon(_micIcon(state.status), size: 24),
-                    label: Text(
-                      _micLabel(state.status),
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
+                child: Center(
+                  child: Icon(
+                    _micIcon(state.status),
+                    size: 60,
+                    color: currentColor,
                   ),
                 ),
               ),
+            ),
+            const SizedBox(height: 48),
+            // Minimal text indicator
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              child: Text(
+                _statusLabel(state.status),
+                key: ValueKey(state.status),
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            const SizedBox(height: 24),
+            if (state.transcript.isNotEmpty || state.streamingReply.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    if (state.transcript.isNotEmpty)
+                      Text(
+                        '"${state.transcript}"',
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          fontStyle: FontStyle.italic,
+                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.8),
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    if (state.transcript.isNotEmpty && state.streamingReply.isNotEmpty)
+                      const Divider(height: 24),
+                    if (state.streamingReply.isNotEmpty)
+                      Text(
+                        state.streamingReply,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.primary,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                  ],
+                ),
+              ),
+            if (_showDebugPanel) ...<Widget>[
+              const SizedBox(height: 20),
+              _buildVoiceStatusConsole(context, state),
+              const SizedBox(height: 10),
+              _buildDebugPanel(context, state),
+            ],
+            const Spacer(),
+            Semantics(
+              label: _micLabel(state.status),
+              child: const SizedBox.shrink(),
             ),
           ],
         ),
@@ -1198,15 +1075,15 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
   String _statusLabel(VoiceAssistantStatus status) {
     switch (status) {
       case VoiceAssistantStatus.idle:
-        return 'Idle';
+        return 'Tap to Start Listening';
       case VoiceAssistantStatus.listening:
-        return 'Continuous listening is active';
+        return 'Listening...';
       case VoiceAssistantStatus.processing:
-        return 'Listening and waiting for model response';
+        return 'Thinking...';
       case VoiceAssistantStatus.speaking:
-        return 'Speaking while continuous listening stays active';
+        return 'Speaking...';
       case VoiceAssistantStatus.error:
-        return 'Error';
+        return 'An error occurred';
     }
   }
 

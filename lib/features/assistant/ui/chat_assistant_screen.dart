@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 import 'package:student_fin_os/features/assistant/ui/voice_assistant_sheet.dart';
 import 'package:student_fin_os/models/assistant_models.dart';
 import 'package:student_fin_os/providers/assistant_providers.dart';
@@ -101,21 +100,11 @@ class _ChatAssistantScreenState extends ConsumerState<ChatAssistantScreen> {
     return Scaffold(
       appBar: AppBar(
         titleSpacing: 0,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Text(
-              'FinMate Chat',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            Text(
-              'Personalized finance guidance from your data',
-              style: Theme.of(context).textTheme.labelMedium,
-            ),
-          ],
+        title: Text(
+          'FinMate',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
         ),
         actions: <Widget>[
           IconButton(
@@ -148,9 +137,27 @@ class _ChatAssistantScreenState extends ConsumerState<ChatAssistantScreen> {
       ),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+          padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
           child: Column(
             children: <Widget>[
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.secondaryContainer,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    'Task-ready chat',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSecondaryContainer,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
               Expanded(
                 child: _MessageList(
                   scrollController: _scrollController,
@@ -200,17 +207,17 @@ class _ChatAssistantScreenState extends ConsumerState<ChatAssistantScreen> {
                 ),
               ],
               if (state.suggestedPrompts.isNotEmpty) ...<Widget>[
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    'Suggested prompts',
-                    style: Theme.of(context).textTheme.labelLarge,
+                    'Quick prompts',
+                    style: Theme.of(context).textTheme.labelMedium,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 SizedBox(
-                  height: 40,
+                  height: 36,
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
                     itemCount: state.suggestedPrompts.length,
@@ -233,7 +240,7 @@ class _ChatAssistantScreenState extends ConsumerState<ChatAssistantScreen> {
                   ),
                 ),
               ],
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               Container(
                 decoration: BoxDecoration(
                   color: Theme.of(context).colorScheme.surfaceContainerLowest,
@@ -276,13 +283,13 @@ class _MessageList extends StatelessWidget {
       return Center(
         child: Container(
           constraints: const BoxConstraints(maxWidth: 460),
-          padding: const EdgeInsets.all(18),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.36),
             borderRadius: BorderRadius.circular(16),
           ),
           child: Text(
-            'Ask about budgets, spending trends, savings goals, or split settlements.',
+            'Ask anything, or assign a task.\nExample: Add expense 250 for lunch',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyMedium,
           ),
@@ -316,59 +323,19 @@ class _MessageList extends StatelessWidget {
           alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 520),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: <Widget>[
-                if (!isUser)
-                  CircleAvatar(
-                    radius: 13,
-                    backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
-                    child: Icon(
-                      message.isError ? Icons.error_outline : Icons.smart_toy_outlined,
-                      size: 15,
-                      color: Theme.of(context).colorScheme.onSecondaryContainer,
-                    ),
-                  ),
-                if (!isUser) const SizedBox(width: 8),
-                Container(
-                  margin: const EdgeInsets.symmetric(vertical: 5),
-                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
-                  decoration: BoxDecoration(
-                    color: bubbleColor,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(
-                        message.content,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: onBubbleColor,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        DateFormat('hh:mm a').format(message.timestamp.toLocal()),
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: onBubbleColor.withValues(alpha: 0.8),
-                        ),
-                      ),
-                    ],
-                  ),
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 5),
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+              decoration: BoxDecoration(
+                color: bubbleColor,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Text(
+                message.content,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: onBubbleColor,
                 ),
-                if (isUser) const SizedBox(width: 8),
-                if (isUser)
-                  CircleAvatar(
-                    radius: 13,
-                    backgroundColor: Theme.of(context).colorScheme.primary,
-                    child: Icon(
-                      Icons.person,
-                      size: 14,
-                      color: Theme.of(context).colorScheme.onPrimary,
-                    ),
-                  ),
-              ],
+              ),
             ),
           ),
         );
@@ -406,7 +373,7 @@ class _TypingBubble extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             Text(
-              'AI is typing...',
+              'Thinking...',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
@@ -443,8 +410,8 @@ class _Composer extends StatelessWidget {
             decoration: const InputDecoration(
               border: InputBorder.none,
               isDense: true,
-              labelText: 'Ask your finance question',
-              hintText: 'Example: How can I stay under budget this week?',
+              hintText:
+                  'Ask or assign a task (e.g. Add expense 250 for lunch)',
             ),
           ),
         ),

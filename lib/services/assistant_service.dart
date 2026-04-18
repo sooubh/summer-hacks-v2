@@ -81,7 +81,7 @@ class AssistantService {
       );
 
       return AssistantReply(
-        reply: reply,
+        reply: _normalizeAssistantReply(reply),
         modelUsed: modelUsed,
         fallbackUsed: fallbackUsed,
         generatedAt: DateTime.now().toUtc(),
@@ -107,7 +107,7 @@ class AssistantService {
     );
 
     return AssistantReply(
-      reply: fallbackReply,
+      reply: _normalizeAssistantReply(fallbackReply),
       modelUsed: modelUsed,
       fallbackUsed: fallbackUsed,
       generatedAt: DateTime.now().toUtc(),
@@ -161,12 +161,14 @@ class AssistantService {
       );
     }
 
+    final String normalizedReply = _normalizeAssistantReply(reply);
+
     return VoiceAssistantReply(
-      reply: reply,
+      reply: normalizedReply,
       modelUsed: modelUsed,
       fallbackUsed: fallbackUsed,
       generatedAt: DateTime.now().toUtc(),
-      speechChunks: _splitSpeechChunks(reply),
+      speechChunks: _splitSpeechChunks(normalizedReply),
     );
   }
 
@@ -197,9 +199,13 @@ class AssistantService {
     return <String>[
       'You are FinMate, a voice-first personal finance assistant for Indian college students.',
       'Speak naturally and clearly, with short actionable responses for voice.',
+      'Keep every response brief: at most 3 short sentences.',
       'Use only the supplied user context JSON as source of truth.',
       'If context is missing, say you do not have enough data and suggest what to track.',
       'Never claim to execute real banking operations.',
+      'If the user asks to perform an in-app task, include exactly one command line at the top using this format: APP_TASK:<command>;key=value;key=value',
+      'Supported commands: add_transaction (amount,type,title,category), create_goal (title,amount,deadline), add_goal_contribution (goal,amount).',
+      'Example: APP_TASK:add_transaction;amount=250;type=expense;title=lunch;category=food',
       'USER_CONTEXT_JSON:',
       clippedContext,
       'RECENT_CONVERSATION:',
@@ -340,6 +346,7 @@ class AssistantService {
       'Focus on spending summaries, budgets, savings goals, transaction explanations, and split expenses.',
       'Use only the supplied user context. Never infer data from outside this context.',
       'Keep responses practical, concise, and actionable. Mention assumptions clearly.',
+      'Response style: max 4 lines, no long paragraphs, no filler.',
       'Never claim to execute real banking operations.',
       'USER_CONTEXT_JSON:',
       contextJson.length > 12000
@@ -411,6 +418,36 @@ class AssistantService {
     }
 
     return <String>[reply.trim()];
+  }
+
+  String _normalizeAssistantReply(String raw) {
+    final String compact = raw
+        .replaceAll('\r\n', '\n')
+        .replaceAll(RegExp(r'\n{3,}'), '\n\n')
+        .trim();
+    if (compact.isEmpty) {
+      return compact;
+    }
+
+    final List<String> lines = compact
+        .split('\n')
+        .map((String line) => line.trim())
+        .where((String line) => line.isNotEmpty)
+        .toList(growable: false);
+    if (lines.length > 5) {
+      return lines.take(5).join('\n');
+    }
+
+    final List<String> sentences = compact
+        .split(RegExp(r'(?<=[.!?])\s+'))
+        .map((String part) => part.trim())
+        .where((String part) => part.isNotEmpty)
+        .toList(growable: false);
+    if (sentences.length > 4) {
+      return sentences.take(4).join(' ');
+    }
+
+    return compact;
   }
 
   String _requireApiKey() {

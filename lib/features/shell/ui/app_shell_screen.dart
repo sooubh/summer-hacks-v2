@@ -11,6 +11,8 @@ import 'package:student_fin_os/features/savings/ui/savings_screen.dart';
 import 'package:student_fin_os/features/splits/ui/splits_screen.dart';
 import 'package:student_fin_os/features/transactions/ui/transactions_screen.dart';
 import 'package:student_fin_os/providers/auth_providers.dart';
+import 'package:student_fin_os/features/shell/ui/alerts_sheet.dart';
+import 'package:student_fin_os/features/assistant/ui/chat_assistant_screen.dart';
 
 class AppShellScreen extends ConsumerStatefulWidget {
   const AppShellScreen({required this.initialIndex, super.key});
@@ -233,9 +235,15 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
             color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
             borderRadius: BorderRadius.circular(20),
           ),
-          child: const TextField(
-            decoration: InputDecoration(
-              hintText: 'Search...',
+          child: TextField(
+            textInputAction: TextInputAction.search,
+            onSubmitted: (value) {
+              if (value.trim().isNotEmpty) {
+                 Navigator.push(context, MaterialPageRoute(builder: (_) => ChatAssistantScreen(initialMessage: value)));
+              }
+            },
+            decoration: const InputDecoration(
+              hintText: 'Ask FinMate anything...',
               prefixIcon: Icon(Icons.search, size: 20),
               border: InputBorder.none,
               contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -259,7 +267,14 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
             ),
           IconButton(
             tooltip: 'Alerts',
-            onPressed: () {},
+            onPressed: () {
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (context) => const AlertsSheet(),
+              );
+            },
             icon: const Badge(child: Icon(Icons.notifications_none)),
           ),
           IconButton(
