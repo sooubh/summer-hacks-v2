@@ -22,6 +22,12 @@ enum _InsightFilter {
   info,
 }
 
+enum _MetricSignal {
+  positive,
+  negative,
+  neutral,
+}
+
 class InsightsScreen extends ConsumerStatefulWidget {
   const InsightsScreen({super.key});
 
@@ -307,6 +313,23 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
     final double avgDailySpend =
         elapsedDays == 0 ? 0 : monthExpense / elapsedDays;
     final double forecastSpend = avgDailySpend * daysInMonth;
+    final double monthlyTrend = snapshot.monthlyTrendPercent;
+
+    final _MetricSignal spendSignal = monthlyTrend > 0
+      ? _MetricSignal.negative
+      : (monthlyTrend < 0 ? _MetricSignal.positive : _MetricSignal.neutral);
+    final String spendSignalLabel =
+      '${monthlyTrend >= 0 ? '+' : ''}${monthlyTrend.toStringAsFixed(1)}%';
+
+    final _MetricSignal incomeSignal = monthIncome >= monthExpense
+      ? _MetricSignal.positive
+      : _MetricSignal.negative;
+    final _MetricSignal estimateSignal = forecastSpend <= monthIncome
+      ? _MetricSignal.positive
+      : _MetricSignal.negative;
+    final _MetricSignal safeSignal = snapshot.safeToSpend > 0
+      ? _MetricSignal.positive
+      : _MetricSignal.negative;
 
     final List<MapEntry<String, double>> topCategories = _topExpenseCategories(
       monthTransactions,
@@ -337,24 +360,32 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
               label: 'This Month Spend',
               value: CurrencyFormatter.inr(monthExpense),
               icon: Icons.payments_outlined,
+              signal: spendSignal,
+              signalLabel: spendSignalLabel,
             ),
             _metricCard(
               context,
               label: 'This Month Income',
               value: CurrencyFormatter.inr(monthIncome),
               icon: Icons.account_balance_wallet_outlined,
+              signal: incomeSignal,
+              signalLabel: monthIncome >= monthExpense ? 'covered' : 'low',
             ),
             _metricCard(
               context,
               label: 'Month-End Estimate',
               value: CurrencyFormatter.inr(forecastSpend),
               icon: Icons.timeline_outlined,
+              signal: estimateSignal,
+              signalLabel: forecastSpend <= monthIncome ? 'within' : 'over',
             ),
             _metricCard(
               context,
               label: 'Safe To Spend',
               value: CurrencyFormatter.inr(snapshot.safeToSpend),
               icon: Icons.shield_outlined,
+              signal: safeSignal,
+              signalLabel: snapshot.safeToSpend > 0 ? 'safe' : 'risk',
             ),
           ],
         ),
@@ -558,6 +589,12 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
       annualReturn: _assumedAnnualReturn,
     );
 
+    final _MetricSignal cashflowSignal =
+      monthNet >= 0 ? _MetricSignal.positive : _MetricSignal.negative;
+    final _MetricSignal sipFitSignal = selected.monthlyAmount <= suggestedSipHigh
+      ? _MetricSignal.positive
+      : _MetricSignal.negative;
+
     final List<String> sipBullets = _sipBullets(
       monthNet: monthNet,
       suggestedSipLow: suggestedSipLow,
@@ -603,6 +640,25 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                   style: Theme.of(context).textTheme.bodySmall,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: <Widget>[
+                    _signalBadge(
+                      context,
+                      label: monthNet >= 0 ? 'Cashflow positive' : 'Cashflow negative',
+                      signal: cashflowSignal,
+                    ),
+                    _signalBadge(
+                      context,
+                      label: selected.monthlyAmount <= suggestedSipHigh
+                          ? 'SIP in range'
+                          : 'SIP above range',
+                      signal: sipFitSignal,
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -828,6 +884,8 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
     required String label,
     required String value,
     required IconData icon,
+    _MetricSignal signal = _MetricSignal.neutral,
+    String? signalLabel,
   }) {
     return Container(
       width: 165,
@@ -840,7 +898,18 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
+          Row(
+            children: <Widget>[
+              Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
+              const Spacer(),
+              if (signalLabel != null)
+                _signalBadge(
+                  context,
+                  label: signalLabel,
+                  signal: signal,
+                ),
+            ],
+          ),
           const SizedBox(height: 8),
           Text(label, style: Theme.of(context).textTheme.labelSmall),
           const SizedBox(height: 4),
@@ -850,6 +919,46 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                 .textTheme
                 .titleSmall
                 ?.copyWith(fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _signalBadge(
+    BuildContext context, {
+    required String label,
+    required _MetricSignal signal,
+  }) {
+    final Color color = switch (signal) {
+      _MetricSignal.positive => const Color(0xFF2E7D32),
+      _MetricSignal.negative => const Color(0xFFC62828),
+      _MetricSignal.neutral => const Color(0xFF546E7A),
+    };
+    final IconData icon = switch (signal) {
+      _MetricSignal.positive => Icons.trending_up_rounded,
+      _MetricSignal.negative => Icons.trending_down_rounded,
+      _MetricSignal.neutral => Icons.trending_flat_rounded,
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.28)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: color,
+                  fontWeight: FontWeight.w700,
+                ),
           ),
         ],
       ),
