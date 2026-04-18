@@ -109,15 +109,42 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
       }
     }).toList();
 
-      final int criticalCount = stableInsights
+    final List<AiInsight> prioritized = List<AiInsight>.from(filtered)
+      ..sort((AiInsight a, AiInsight b) {
+        final int bySeverity =
+            _severityRank(a.severity).compareTo(_severityRank(b.severity));
+        if (bySeverity != 0) {
+          return bySeverity;
+        }
+        return b.createdAt.compareTo(a.createdAt);
+      });
+
+    final int criticalCount = stableInsights
         .where((AiInsight insight) => insight.severity == InsightSeverity.critical)
         .length;
-      final int warningCount = stableInsights
+    final int warningCount = stableInsights
         .where((AiInsight insight) => insight.severity == InsightSeverity.warning)
         .length;
-      final int infoCount = stableInsights
+    final int infoCount = stableInsights
         .where((AiInsight insight) => insight.severity == InsightSeverity.info)
         .length;
+
+    final bool hasCritical = criticalCount > 0;
+    final bool hasWarning = !hasCritical && warningCount > 0;
+    final Color summaryColor = hasCritical
+        ? const Color(0xFFC62828)
+        : (hasWarning ? const Color(0xFFEF6C00) : const Color(0xFF2E7D32));
+    final IconData summaryIcon = hasCritical
+        ? Icons.notification_important_rounded
+        : (hasWarning ? Icons.warning_amber_rounded : Icons.verified_rounded);
+    final String summaryTitle = hasCritical
+        ? 'Urgent attention needed'
+        : (hasWarning ? 'Review warnings soon' : 'All clear right now');
+    final String summaryMessage = hasCritical
+        ? '$criticalCount urgent alert${criticalCount == 1 ? '' : 's'} need action today.'
+        : (hasWarning
+            ? '$warningCount heads-up item${warningCount == 1 ? '' : 's'} to review this week.'
+            : 'No urgent alerts detected. Keep tracking your feed.');
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -130,6 +157,8 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                 label: 'Urgent',
                 value: '$criticalCount',
                 color: Colors.redAccent,
+                icon: Icons.priority_high_rounded,
+                subtitle: 'Today',
               ),
             ),
             const SizedBox(width: 8),
@@ -139,6 +168,8 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                 label: 'Heads-up',
                 value: '$warningCount',
                 color: Colors.orangeAccent,
+                icon: Icons.schedule_rounded,
+                subtitle: 'This week',
               ),
             ),
             const SizedBox(width: 8),
@@ -148,9 +179,47 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                 label: 'FYI',
                 value: '$infoCount',
                 color: Colors.blueAccent,
+                icon: Icons.info_outline_rounded,
+                subtitle: 'Track',
               ),
             ),
           ],
+        ),
+        const SizedBox(height: 10),
+        Card(
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: summaryColor.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: summaryColor.withValues(alpha: 0.32)),
+            ),
+            child: Row(
+              children: <Widget>[
+                Icon(summaryIcon, color: summaryColor),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        summaryTitle,
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: summaryColor,
+                            ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        summaryMessage,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
         const SizedBox(height: 10),
         Row(
@@ -212,68 +281,113 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
           scrollDirection: Axis.horizontal,
           child: Row(
             children: <Widget>[
-              _filterChip('All', _InsightFilter.all),
+              _filterChip(
+                'All',
+                _InsightFilter.all,
+                count: stableInsights.length,
+                icon: Icons.grid_view_rounded,
+              ),
               const SizedBox(width: 8),
-              _filterChip('Urgent', _InsightFilter.critical),
+              _filterChip(
+                'Urgent',
+                _InsightFilter.critical,
+                count: criticalCount,
+                icon: Icons.priority_high_rounded,
+              ),
               const SizedBox(width: 8),
-              _filterChip('Heads-up', _InsightFilter.warning),
+              _filterChip(
+                'Heads-up',
+                _InsightFilter.warning,
+                count: warningCount,
+                icon: Icons.schedule_rounded,
+              ),
               const SizedBox(width: 8),
-              _filterChip('FYI', _InsightFilter.info),
+              _filterChip(
+                'FYI',
+                _InsightFilter.info,
+                count: infoCount,
+                icon: Icons.info_outline_rounded,
+              ),
             ],
           ),
         ),
         const SizedBox(height: 10),
-        if (filtered.isEmpty)
+        if (prioritized.isEmpty)
           const EmptyState(
             title: 'No insights in this filter',
             message: 'Insights will appear automatically from your latest data.',
             icon: Icons.lightbulb,
           )
         else
-          ...filtered.map((AiInsight insight) {
+          ...prioritized.map((AiInsight insight) {
+            final Color severityColor = _colorForSeverity(insight.severity);
             return Card(
               margin: const EdgeInsets.only(bottom: 8),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Row(
-                      children: <Widget>[
-                        Icon(
-                          _iconForSeverity(insight.severity),
-                          color: _colorForSeverity(insight.severity),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            insight.title,
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleSmall
-                                ?.copyWith(fontWeight: FontWeight.w700),
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: severityColor.withValues(alpha: 0.22)),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Row(
+                        children: <Widget>[
+                          _severityPill(context, insight.severity),
+                          const Spacer(),
+                          Text(
+                            _relativeTime(insight.createdAt),
+                            style: Theme.of(context).textTheme.labelSmall,
                           ),
-                        ),
-                        Text(DateFormat('dd MMM').format(insight.createdAt)),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      insight.message,
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      children: <Widget>[
-                        _compactTag(
-                          context,
-                          _actionHint(insight.severity),
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                      ],
-                    ),
-                  ],
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Icon(
+                            _iconForSeverity(insight.severity),
+                            color: severityColor,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              insight.title,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        insight.message,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: <Widget>[
+                          _compactTag(
+                            context,
+                            _actionHint(insight.severity),
+                            color: severityColor,
+                          ),
+                          _compactTag(
+                            context,
+                            'Priority ${_severityLabel(insight.severity)}',
+                            color: severityColor,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             );
@@ -1162,16 +1276,33 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
     required String label,
     required String value,
     required Color color,
+    required IconData icon,
+    required String subtitle,
   }) {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Theme.of(context).dividerColor),
+        border: Border.all(color: color.withValues(alpha: 0.32)),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
+          Row(
+            children: <Widget>[
+              Icon(icon, size: 14, color: color),
+              const Spacer(),
+              Text(
+                subtitle,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: color,
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
           Text(
             value,
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
@@ -1186,11 +1317,17 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
     );
   }
 
-  Widget _filterChip(String label, _InsightFilter value) {
+  Widget _filterChip(
+    String label,
+    _InsightFilter value, {
+    int? count,
+    IconData? icon,
+  }) {
     final bool selected = _filter == value;
     return FilterChip(
       selected: selected,
-      label: Text(label),
+      avatar: icon == null ? null : Icon(icon, size: 16),
+      label: Text(count == null ? label : '$label ($count)'),
       onSelected: (bool _) {
         setState(() {
           _filter = value;
@@ -1199,14 +1336,80 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
     );
   }
 
+  int _severityRank(InsightSeverity severity) {
+    switch (severity) {
+      case InsightSeverity.critical:
+        return 0;
+      case InsightSeverity.warning:
+        return 1;
+      case InsightSeverity.info:
+        return 2;
+    }
+  }
+
+  String _severityLabel(InsightSeverity severity) {
+    switch (severity) {
+      case InsightSeverity.critical:
+        return 'Urgent';
+      case InsightSeverity.warning:
+        return 'Heads-up';
+      case InsightSeverity.info:
+        return 'FYI';
+    }
+  }
+
+  String _relativeTime(DateTime createdAt) {
+    final Duration delta = DateTime.now().difference(createdAt);
+    if (delta.inMinutes < 1) {
+      return 'just now';
+    }
+    if (delta.inHours < 1) {
+      return '${delta.inMinutes}m ago';
+    }
+    if (delta.inDays < 1) {
+      return '${delta.inHours}h ago';
+    }
+    if (delta.inDays < 7) {
+      return '${delta.inDays}d ago';
+    }
+    return DateFormat('dd MMM').format(createdAt);
+  }
+
+  Widget _severityPill(BuildContext context, InsightSeverity severity) {
+    final Color color = _colorForSeverity(severity);
+    final String label = _severityLabel(severity);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.32)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(_iconForSeverity(severity), size: 12, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: color,
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+
   String _actionHint(InsightSeverity severity) {
     switch (severity) {
       case InsightSeverity.critical:
-        return 'Action: Pause non-essential spending today.';
+        return 'Act now: pause non-essential spending today';
       case InsightSeverity.warning:
-        return 'Action: Tighten this week budget slightly.';
+        return 'Plan this week: tighten discretionary budget';
       case InsightSeverity.info:
-        return 'Action: Keep this habit going.';
+        return 'Keep going: this trend is healthy';
     }
   }
 
@@ -1224,11 +1427,11 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
   Color _colorForSeverity(InsightSeverity severity) {
     switch (severity) {
       case InsightSeverity.info:
-        return Colors.lightBlueAccent;
+        return const Color(0xFF1565C0);
       case InsightSeverity.warning:
-        return Colors.amberAccent;
+        return const Color(0xFFEF6C00);
       case InsightSeverity.critical:
-        return Colors.redAccent;
+        return const Color(0xFFC62828);
     }
   }
 }
