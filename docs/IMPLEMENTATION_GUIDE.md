@@ -1,103 +1,128 @@
-# Student Financial OS Implementation Guide
+# Implementation Guide
 
-## Step 1: Project setup
+This guide describes a production-oriented implementation and delivery path for Student Financial OS.
 
-1. Install Flutter 3.35+ and Firebase CLI.
-2. Run:
-   - `flutter create --platforms=android,ios,web --project-name student_fin_os .`
-   - `flutter pub get`
-3. Create a Firebase project and enable:
-   - Authentication (Google + Email)
-   - Firestore
-   - Storage
-   - Functions
-4. Configure FlutterFire:
-   - `dart pub global activate flutterfire_cli`
-   - `flutterfire configure`
-5. Replace placeholder values in `lib/firebase_options.dart` with generated values (or overwrite file from flutterfire).
+## Phase 1: Foundation and environment
 
-## Step 2: Authentication module
+## Goals
 
-1. Deploy callable functions in `functions/src/index.ts`.
-2. Wire Firebase Authentication in Console:
-   - Enable Google provider.
-   - For OTP flow, use callable functions: `requestEmailOtp` and `verifyEmailOtp`.
-3. Use `AuthService` and `AuthController` to drive `LoginScreen`.
+- Establish deterministic local setup and build reproducibility.
+- Bind app to correct Firebase project per environment.
 
-## Step 3: Core data models
+## Actions
 
-Models are in `lib/models` and mapped to Firestore through `toMap` / `fromMap`.
+1. Install prerequisites:
+   - Flutter SDK
+   - Node.js 20+
+   - Firebase CLI
+   - FlutterFire CLI
+2. Run setup:
+   - flutter pub get
+   - flutterfire configure
+3. Configure environment:
+   - Create .env from .env.example
+   - Populate AI model and key values
+4. Build backend:
+   - cd functions
+   - npm install
+   - npm run build
 
-- User: `app_user.dart`
-- Money sources: `account.dart`
-- Transactions: `finance_transaction.dart`
-- Splits: `split_group.dart`, `split_expense.dart`
-- Savings: `savings_goal.dart`
-- Insights/Cash-flow: `ai_insight.dart`, `cash_flow_point.dart`, `dashboard_snapshot.dart`
+## Exit criteria
 
-## Step 4: Dashboard-first UI
+- flutter analyze passes.
+- npm run build in functions passes.
+- App launches on at least one target platform.
 
-1. Open app shell route `/app`.
-2. Use `DashboardScreen` as default tab.
-3. Display:
-   - Unified total balance
-   - Safe-to-spend
-   - Weekly spend
-   - Burn rate
-   - Category chart
+## Phase 2: Core domain integrity
 
-## Step 5: Transaction system
+## Goals
 
-1. Use `TransactionService.createTransaction` for writes.
-2. It updates account balance atomically in a Firestore transaction.
-3. UI supports:
-   - Manual entry
-   - Simulated QR scan flow
-   - Category/tagging
+- Ensure transaction writes are atomic.
+- Preserve account balance consistency.
+- Lock user data ownership at rule level.
 
-## Step 6: Split system
+## Actions
 
-1. Create groups in `split_groups`.
-2. Add expenses in `split_expenses` with `owedBy` map.
-3. Compute net balance matrix via `SplitService.netBalances`.
+1. Validate account and transaction model mapping.
+2. Verify createTransaction updates account in Firestore transaction.
+3. Confirm firestore.rules constraints for:
+   - positive transaction amounts
+   - immutable user ownership fields
+   - enum and type validation
 
-## Step 7: Savings engine
+## Exit criteria
 
-1. Create `savings_goals` with target/deadline/priority.
-2. Use `SavingsService.recommendedMonthlyContribution`.
-3. Safe-to-spend = total balance - reserve - monthly goal contribution.
+- Manual transaction add/update/delete behaves consistently.
+- No observed balance drift in repeated write scenarios.
 
-## Step 8: Rule-based AI insights
+## Phase 3: Product feature delivery
 
-1. Use `InsightsService.generateRuleBasedInsights` from recent transaction data.
-2. Trigger insight generation:
-   - Manual refresh from UI
-   - Scheduled monthly function
-   - Budget overrun function trigger
+## Goals
 
-## Step 9: Notifications and reminders
+- Deliver complete student finance workflows.
+- Maintain coherent experience across dashboard, splits, goals, and assistants.
 
-1. Save preferences in `notification_preferences`.
-2. Cloud scheduler functions create `notifications` docs:
-   - Daily reminder
-   - Budget alert
-   - Monthly summary
+## Actions
 
-## Step 10: Testing and optimization
+1. Dashboard:
+   - summary cards
+   - trend charts
+   - method/category drilldowns
+2. Transactions:
+   - manual and seeded flows
+3. Savings:
+   - goals, progress, contribution tracking
+4. Splits:
+   - group setup and expense balancing
+5. Assistant:
+   - chat and voice interaction
+   - in-app task execution for supported intents
 
-1. Run `flutter analyze` and `flutter test`.
-2. Validate auth + Firestore rules in Firebase Emulator Suite.
-3. Add integration tests for:
-   - OTP success/failure
-   - Transaction balance consistency
-   - Split settlements
-   - Safe-to-spend logic
-4. Add App Check and rate limiting for callable functions.
+## Exit criteria
 
-## Release checklist
+- All major feature screens are reachable and stable.
+- Assistant action intents create expected domain updates.
 
-1. Harden `firebase/firestore.rules` and deploy rules.
-2. Set strict CORS/app check for callable functions.
-3. Add crash/error monitoring.
-4. Create production indexes from `firebase/firestore.indexes.json`.
-5. Use staged rollouts for Android/Web.
+## Phase 4: Backend automation and notifications
+
+## Goals
+
+- Provide recurring reminders and budget signals.
+
+## Actions
+
+1. Deploy callable OTP functions.
+2. Deploy scheduled jobs:
+   - daily spending reminder
+   - monthly summary
+3. Deploy trigger-based budget alert function.
+
+## Exit criteria
+
+- Scheduled and trigger functions write expected documents.
+- Logs show healthy completion.
+
+## Phase 5: Production readiness
+
+## Goals
+
+- Raise operational confidence and security posture.
+
+## Actions
+
+1. Deploy Firestore rules and indexes.
+2. Implement monitoring and alerting for function failures.
+3. Validate security controls and secret handling.
+4. Execute release checklist from DEPLOYMENT.md.
+
+## Exit criteria
+
+- Release gate checks pass.
+- No critical open defects.
+- Rollback plan documented.
+
+## Ongoing governance
+
+- Keep docs synchronized with behavior changes.
+- Run analyzer and tests on every release branch.
+- Periodically review seed strategy, schema evolution, and assistant safety constraints.

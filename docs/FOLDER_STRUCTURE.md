@@ -1,87 +1,76 @@
-# Student Financial OS Folder Structure
+# Folder Structure
+
+The project uses a feature-first Flutter structure with Firebase backend assets and Cloud Functions.
+
+## Top level
 
 ```text
 summer-hacks-v2/
-  android/
-  ios/
-  web/
-  assets/
-    mock/
-      mock_data.json
-  firebase/
-    firestore.rules
-    firestore.indexes.json
-    storage.rules
-  functions/
-    src/
-      index.ts
-    .eslintrc.cjs
-    package.json
-    tsconfig.json
-  lib/
-    app/
-      student_fin_os_app.dart
-    core/
-      router/
-        app_router.dart
-      theme/
-        app_theme.dart
-      utils/
-        currency_formatter.dart
-        firestore_codec.dart
-      widgets/
-        empty_state.dart
-        metric_card.dart
-        section_header.dart
-    data/
-      mock/
-        mock_seed.dart
-    features/
-      auth/ui/login_screen.dart
-      dashboard/ui/dashboard_screen.dart
-      transactions/ui/transactions_screen.dart
-      splits/ui/splits_screen.dart
-      savings/ui/savings_screen.dart
-      insights/ui/insights_screen.dart
-      cashflow/ui/cash_flow_screen.dart
-      shell/ui/app_shell_screen.dart
-    models/
-      account.dart
-      ai_insight.dart
-      app_user.dart
-      cash_flow_point.dart
-      dashboard_snapshot.dart
-      finance_enums.dart
-      finance_transaction.dart
-      savings_goal.dart
-      split_expense.dart
-      split_group.dart
-    providers/
-      auth_providers.dart
-      cash_flow_providers.dart
-      dashboard_providers.dart
-      firebase_providers.dart
-      insights_providers.dart
-      notification_providers.dart
-      savings_providers.dart
-      split_providers.dart
-      transaction_providers.dart
-    services/
-      account_service.dart
-      auth_service.dart
-      cash_flow_service.dart
-      insights_service.dart
-      mock_bank_service.dart
-      notification_service.dart
-      savings_service.dart
-      split_service.dart
-      transaction_service.dart
-    firebase_options.dart
-    main.dart
-  docs/
-    FOLDER_STRUCTURE.md
-    FIREBASE_SCHEMA.md
-    IMPLEMENTATION_GUIDE.md
-  pubspec.yaml
-  README.md
+  android/                       Android host project
+  ios/                           iOS host project
+  web/                           Web host files
+  assets/                        Static assets and mock seed data
+  firebase/                      Firestore and Storage rules/indexes
+  functions/                     Cloud Functions (TypeScript)
+  lib/                           Flutter source
+  docs/                          Project and production documentation
+  test/                          Flutter tests
+  pubspec.yaml                   Flutter package manifest
+  firebase.json                  Firebase project config
+  README.md                      Root project entry documentation
+```
+
+## Flutter app structure
+
+```text
+lib/
+  app/                           App bootstrap and app-level composition
+  core/                          Cross-cutting utils, theme, routing, shared widgets
+  data/                          Data adapters and mock seed loader
+  features/                      Feature modules grouped by business capability
+    assistant/                   AI chat and voice assistant UI
+    auth/
+    cashflow/
+    dashboard/
+    insights/
+    rewards/
+    savings/
+    shell/
+    splits/
+    transactions/
+  l10n/                          Localization setup
+  models/                        Domain models and serialization
+  providers/                     Riverpod providers/controllers
+  services/                      Firestore/Auth/Function service layer
+  firebase_options.dart          Generated FlutterFire bindings
+  main.dart                      App entry point
+```
+
+## Backend structure
+
+```text
+functions/
+  src/
+    index.ts                     Callable, scheduled, and trigger functions
+  lib/                           Compiled JavaScript output
+  package.json                   Scripts and dependencies
+  tsconfig.json                  TypeScript configuration
+```
+
+## Documentation structure
+
+```text
+docs/
+  README.md                      Documentation hub
+  ARCHITECTURE.md                System architecture
+  LOCAL_DEVELOPMENT.md           Local setup and workflows
+  DEPLOYMENT.md                  Release and rollout guide
+  SECURITY.md                    Security model and hardening
+  TESTING_AND_QA.md              Quality strategy
+  OPERATIONS_RUNBOOK.md          Runtime operations and incidents
+  TROUBLESHOOTING.md             Common failures and fixes
+  DATA_SEEDING.md                Starter and dummy data seeding behavior
+  FIREBASE_SCHEMA.md             Firestore schema and field reference
+  FOLDER_STRUCTURE.md            This file
+  IMPLEMENTATION_GUIDE.md        Implementation and delivery roadmap
 ```

@@ -11,7 +11,7 @@ class MockBankService {
 
   final FirebaseFirestore _firestore;
   final Uuid _uuid;
-  static const int _seedVersion = 1;
+  static const int _seedVersion = 2;
 
   Future<void> seedStarterData(String userId) async {
     if (userId.isEmpty) {
@@ -196,21 +196,80 @@ class MockBankService {
             'amount': 5500,
             'type': 'income',
             'category': 'stipend',
-            'source': 'bank_transfer',
+            'source': 'bank transfer',
+            'channel': 'bank_transfer',
           },
           <String, dynamic>{
             'title': 'Mess bill',
             'amount': 1200,
             'type': 'expense',
             'category': 'food',
-            'source': 'upi',
+            'source': 'Google Pay',
+            'channel': 'upi',
           },
           <String, dynamic>{
             'title': 'Freelance payout',
             'amount': 3000,
             'type': 'income',
             'category': 'freelance',
-            'source': 'bank_transfer',
+            'source': 'bank transfer',
+            'channel': 'bank_transfer',
+          },
+          <String, dynamic>{
+            'title': 'Groceries - Dmart',
+            'amount': 980,
+            'type': 'expense',
+            'category': 'grocery',
+            'source': 'PhonePe',
+            'channel': 'upi',
+          },
+          <String, dynamic>{
+            'title': 'Metro Recharge',
+            'amount': 450,
+            'type': 'expense',
+            'category': 'travel',
+            'source': 'Paytm',
+            'channel': 'upi',
+          },
+          <String, dynamic>{
+            'title': 'Tea and Snacks',
+            'amount': 120,
+            'type': 'expense',
+            'category': 'food',
+            'source': 'Cash',
+            'channel': 'cash',
+          },
+          <String, dynamic>{
+            'title': 'Online Shopping',
+            'amount': 1890,
+            'type': 'expense',
+            'category': 'shopping',
+            'source': 'Amazon Pay',
+            'channel': 'upi',
+          },
+          <String, dynamic>{
+            'title': 'Pharmacy',
+            'amount': 420,
+            'type': 'expense',
+            'category': 'health',
+            'source': 'BHIM UPI',
+            'channel': 'upi',
+          },
+          <String, dynamic>{
+            'title': 'Fuel',
+            'amount': 850,
+            'type': 'expense',
+            'category': 'travel',
+            'source': 'Cash',
+            'channel': 'cash',
+          },
+          <String, dynamic>{
+            'title': 'Laptop Accessory',
+            'amount': 1299,
+            'type': 'expense',
+            'category': 'shopping',
+            'source': 'HDFC Debit Card',
+            'channel': 'card',
           },
         ],
         savingsGoals: <Map<String, dynamic>>[
@@ -443,20 +502,51 @@ class MockBankService {
 
   String _normalizeSource(dynamic value) {
     final String normalized = value?.toString().trim().toLowerCase() ?? '';
+    if (normalized.isEmpty) {
+      return 'manual';
+    }
+
     if (normalized == 'qr' || normalized == 'manual') {
       return normalized;
     }
-    return 'manual';
+
+    return normalized.replaceAll('_', ' ');
   }
 
   String _normalizeChannel(dynamic value) {
     final String normalized = value?.toString().trim().toLowerCase() ?? '';
+    if (normalized.contains('cash')) {
+      return 'cash';
+    }
+    if (normalized.contains('card') ||
+        normalized.contains('credit') ||
+        normalized.contains('debit')) {
+      return 'card';
+    }
+    if (normalized.contains('bank') || normalized.contains('transfer')) {
+      return 'bank_transfer';
+    }
+
     if (normalized == 'cash' ||
         normalized == 'card' ||
         normalized == 'bank_transfer' ||
         normalized == 'upi') {
       return normalized;
     }
+
+    if (normalized.contains('phonepe') ||
+        normalized.contains('phone pe') ||
+        normalized.contains('gpay') ||
+        normalized.contains('google') ||
+        normalized.contains('paytm') ||
+        normalized.contains('amazon pay') ||
+        normalized.contains('bhim') ||
+        normalized.contains('cred') ||
+        normalized.contains('freecharge') ||
+        normalized.contains('mobikwik')) {
+      return 'upi';
+    }
+
     return 'cash';
   }
 

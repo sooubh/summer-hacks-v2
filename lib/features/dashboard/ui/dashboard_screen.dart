@@ -63,39 +63,161 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     if (userId == null) return;
     final txService = ref.read(transactionServiceProvider);
     final accountService = ref.read(accountServiceProvider);
-    
+
     final accounts = await accountService.watchAccounts(userId).first;
     if (accounts.isEmpty) return;
 
     setState(() => _isSeeding = true);
 
-    final String accountId = accounts.first.id;
-    final now = DateTime.now();
-    final uid = const Uuid();
+    int seededCount = 0;
+    int skippedCount = 0;
 
-    final List<Map<String, dynamic>> dummies = generateDummyTransactions();
+    try {
+      final now = DateTime.now();
+      final uid = const Uuid();
+      final List<Map<String, dynamic>> dummies = generateDummyTransactions();
 
-    for (int i = 0; i < dummies.length; i++) {
-      final d = dummies[i];
-      final isExp = d['isIncome'] != true;
-      final tx = FinanceTransaction(
-        id: uid.v4(),
-        userId: userId,
-        accountId: accountId,
-        title: d['title'],
-        amount: d['amount'],
-        type: isExp ? TransactionType.expense : TransactionType.income,
-        category: d['cat'],
-        transactionAt: now.subtract(Duration(days: i)),
-        createdAt: now,
-        updatedAt: now,
-        source: d['src'],
-        channel: 'upi',
-      );
-      await txService.createTransaction(tx);
+      final Map<String, double> projectedBalanceByAccount = <String, double>{
+        for (final account in accounts) account.id: account.balance,
+      };
+
+      for (int i = 0; i < dummies.length; i++) {
+        final d = dummies[i];
+        final bool isExpense = d['isIncome'] != true;
+        final double amount = ((d['amount'] as num?)?.toDouble() ?? 0).abs();
+        if (amount <= 0) {
+          skippedCount += 1;
+          continue;
+        }
+
+        final String source = ((d['src'] as String?) ?? 'manual').trim();
+        final String channel = (((d['channel'] as String?) ?? '')
+                    .trim()
+                    .toLowerCase()
+                    .isEmpty)
+            ? _inferChannelFromSource(source)
+            : (d['channel'] as String).trim().toLowerCase();
+
+        final String accountId = _pickAccountIdForSeed(
+          accounts,
+          projectedBalanceByAccount,
+          channel: channel,
+          amount: amount,
+          isExpense: isExpense,
+        );
+        if (accountId.isEmpty) {
+          skippedCount += 1;
+          continue;
+        }
+
+        if (isExpense) {
+          final double current = projectedBalanceByAccount[accountId] ?? 0;
+          if (current < amount) {
+            skippedCount += 1;
+            continue;
+          }
+          projectedBalanceByAccount[accountId] = current - amount;
+        } else {
+          final double current = projectedBalanceByAccount[accountId] ?? 0;
+          projectedBalanceByAccount[accountId] = current + amount;
+        }
+
+        final tx = FinanceTransaction(
+          id: uid.v4(),
+          userId: userId,
+          accountId: accountId,
+          title: ((d['title'] as String?) ?? 'Seed Transaction').trim(),
+          amount: amount,
+          type: isExpense ? TransactionType.expense : TransactionType.income,
+          category: ((d['cat'] as String?) ?? 'misc').trim(),
+          transactionAt: now.subtract(Duration(days: i)),
+          createdAt: now,
+          updatedAt: now,
+          source: source.isEmpty ? 'manual' : source,
+          channel: channel,
+        );
+
+        await txService.createTransaction(tx);
+        seededCount += 1;
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSeeding = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              skippedCount > 0
+                  ? 'Seeded $seededCount transactions, skipped $skippedCount to avoid negative balance.'
+                  : 'Seeded $seededCount transactions.',
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  String _pickAccountIdForSeed(
+    List<dynamic> accounts,
+    Map<String, double> balanceByAccount, {
+    required String channel,
+    required double amount,
+    required bool isExpense,
+  }) {
+    String? preferredId;
+    final String normalizedChannel = channel.toLowerCase();
+
+    for (final account in accounts) {
+      final String accountType = account.type.toString().toLowerCase();
+      if (normalizedChannel == 'cash' && accountType.contains('cash')) {
+        preferredId = account.id as String;
+        break;
+      }
+      if (normalizedChannel == 'upi' && accountType.contains('upi')) {
+        preferredId = account.id as String;
+        break;
+      }
+      if ((normalizedChannel == 'card' || normalizedChannel == 'bank_transfer') &&
+          accountType.contains('bank')) {
+        preferredId = account.id as String;
+        break;
+      }
     }
 
-    setState(() => _isSeeding = false);
+    final List<String> candidateIds = accounts
+        .map((dynamic account) => account.id as String)
+        .toList(growable: true);
+    if (preferredId != null) {
+      candidateIds.remove(preferredId);
+      candidateIds.insert(0, preferredId);
+    }
+
+    if (!isExpense) {
+      return candidateIds.isNotEmpty ? candidateIds.first : '';
+    }
+
+    for (final String id in candidateIds) {
+      if ((balanceByAccount[id] ?? 0) >= amount) {
+        return id;
+      }
+    }
+
+    return '';
+  }
+
+  String _inferChannelFromSource(String source) {
+    final String normalized = source.toLowerCase();
+    if (normalized.contains('cash')) {
+      return 'cash';
+    }
+    if (normalized.contains('card') ||
+        normalized.contains('credit') ||
+        normalized.contains('debit')) {
+      return 'card';
+    }
+    if (normalized.contains('bank') || normalized.contains('transfer')) {
+      return 'bank_transfer';
+    }
+    return 'upi';
   }
 
 
@@ -1089,6 +1211,21 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     if (combined.contains('paytm')) {
       return 'Paytm';
     }
+    if (combined.contains('amazon pay')) {
+      return 'Amazon Pay';
+    }
+    if (combined.contains('bhim')) {
+      return 'BHIM UPI';
+    }
+    if (combined.contains('cred')) {
+      return 'NAVI';
+    }
+    if (combined.contains('freecharge')) {
+      return 'Freecharge';
+    }
+    if (combined.contains('mobikwik')) {
+      return 'MobiKwik';
+    }
     if (combined.contains('cash')) {
       return 'Cash';
     }
@@ -1123,6 +1260,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     if (normalized.contains('paytm')) {
       return Icons.qr_code_scanner_outlined;
     }
+    if (normalized.contains('amazon')) {
+      return Icons.shopping_bag_outlined;
+    }
+    if (normalized.contains('bhim')) {
+      return Icons.account_balance_wallet_outlined;
+    }
+    if (normalized.contains('cred')) {
+      return Icons.credit_score_outlined;
+    }
     if (normalized.contains('cash')) {
       return Icons.currency_rupee;
     }
@@ -1148,6 +1294,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     }
     if (normalized.contains('paytm')) {
       return const Color(0xFF00BAF2);
+    }
+    if (normalized.contains('amazon')) {
+      return const Color(0xFFFF9900);
+    }
+    if (normalized.contains('bhim')) {
+      return const Color(0xFF2E7D32);
+    }
+    if (normalized.contains('cred')) {
+      return const Color(0xFF263238);
     }
     if (normalized.contains('cash')) {
       return const Color(0xFF2E7D32);

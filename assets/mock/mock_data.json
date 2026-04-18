@@ -25,21 +25,104 @@
       "amount": 5500,
       "type": "income",
       "category": "stipend",
-      "source": "bank_transfer"
+      "source": "bank transfer",
+      "channel": "bank_transfer"
     },
     {
       "title": "Mess bill",
       "amount": 1200,
       "type": "expense",
       "category": "food",
-      "source": "upi"
+      "source": "Google Pay",
+      "channel": "upi"
     },
     {
       "title": "Freelance payout",
       "amount": 3000,
       "type": "income",
       "category": "freelance",
-      "source": "bank_transfer"
+      "source": "bank transfer",
+      "channel": "bank_transfer"
+    },
+    {
+      "title": "Groceries - Dmart",
+      "amount": 980,
+      "type": "expense",
+      "category": "grocery",
+      "source": "PhonePe",
+      "channel": "upi"
+    },
+    {
+      "title": "Metro Recharge",
+      "amount": 450,
+      "type": "expense",
+      "category": "travel",
+      "source": "Paytm",
+      "channel": "upi"
+    },
+    {
+      "title": "Tea and Snacks",
+      "amount": 120,
+      "type": "expense",
+      "category": "food",
+      "source": "Cash",
+      "channel": "cash"
+    },
+    {
+      "title": "Online Shopping",
+      "amount": 1890,
+      "type": "expense",
+      "category": "shopping",
+      "source": "Amazon Pay",
+      "channel": "upi"
+    },
+    {
+      "title": "Pharmacy",
+      "amount": 420,
+      "type": "expense",
+      "category": "health",
+      "source": "BHIM UPI",
+      "channel": "upi"
+    },
+    {
+      "title": "Fuel",
+      "amount": 850,
+      "type": "expense",
+      "category": "travel",
+      "source": "Cash",
+      "channel": "cash"
+    },
+    {
+      "title": "Laptop Accessory",
+      "amount": 1299,
+      "type": "expense",
+      "category": "shopping",
+      "source": "HDFC Debit Card",
+      "channel": "card"
+    },
+    {
+      "title": "Movie Tickets",
+      "amount": 640,
+      "type": "expense",
+      "category": "entertainment",
+      "source": "CRED",
+      "channel": "upi"
+    },
+    {
+      "title": "Utility Bill",
+      "amount": 1560,
+      "type": "expense",
+      "category": "bills",
+      "source": "PhonePe",
+      "channel": "upi"
+    },
+    {
+      "title": "Part-time Tutoring",
+      "amount": 4200,
+      "type": "income",
+      "category": "salary",
+      "source": "bank transfer",
+      "channel": "bank_transfer"
     }
   ],
   "savingsGoals": [
